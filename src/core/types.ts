@@ -42,6 +42,8 @@ export interface SceneShot {
   action: string;
   aspectRatio: '9:16' | '16:9' | '1:1' | '2:3';
   seed?: number;
+  mediaUrl?: string;
+  mediaType?: 'video' | 'image';
 }
 
 export interface CompiledPromptResult {

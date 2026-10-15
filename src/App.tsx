@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   User, 
   Film, 
@@ -15,11 +15,16 @@ import {
   Download, 
   RefreshCw,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  Upload,
+  Video,
+  Sliders,
+  Network
 } from 'lucide-react';
 import { CharacterSheet, SceneShot } from './core/types';
 import { defaultCharacters } from './core/defaultCharacters';
 import { compileScenePrompt } from './core/promptCompiler';
+import SceneCanvas from './components/SceneCanvas';
 
 const initialShots: SceneShot[] = [
   {
@@ -58,6 +63,7 @@ export default function App() {
   const [characters, setCharacters] = useState<CharacterSheet[]>(defaultCharacters);
   const [selectedCharId, setSelectedCharId] = useState<string>('megalina');
   const [activeTab, setActiveTab] = useState<'character' | 'canvas'>('canvas');
+  const [canvasViewMode, setCanvasViewMode] = useState<'graph' | 'director'>('graph');
   
   const [shots, setShots] = useState<SceneShot[]>(initialShots);
   const [selectedShotId, setSelectedShotId] = useState<string>(initialShots[0].id);
@@ -67,17 +73,39 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
 
+  // Voice Settings for Character.ai
+  const [voicePitch, setVoicePitch] = useState<number>(1.0);
+  const [voiceRate, setVoiceRate] = useState<number>(1.0);
+
   // Selected Character
   const selectedCharacter = useMemo(() => {
     return characters.find(c => c.id === selectedCharId) || characters[0];
   }, [characters, selectedCharId]);
 
-  // Chat State for Character.ai Simulator
-  const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'char'; text: string }[]>([
-    { sender: 'char', text: selectedCharacter.greeting || 'Olá! Pronta para planejar nossa próxima cena?' }
-  ]);
+  // Persistent Chat History per Character (LocalStorage)
+  const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'char'; text: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [newForbiddenTag, setNewForbiddenTag] = useState('');
+
+  // Load chat history from LocalStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(`char_chat_${selectedCharId}`);
+    if (saved) {
+      try {
+        setChatMessages(JSON.parse(saved));
+      } catch {
+        setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá!' }]);
+      }
+    } else {
+      setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá! Pronta para planejar nossa próxima cena?' }]);
+    }
+  }, [selectedCharId, selectedCharacter.greeting]);
+
+  // Helper to update and persist chat
+  const updateChat = (newMsgs: { sender: 'user' | 'char'; text: string }[]) => {
+    setChatMessages(newMsgs);
+    localStorage.setItem(`char_chat_${selectedCharId}`, JSON.stringify(newMsgs));
+  };
 
   const activeShot = useMemo(() => {
     return shots.find(s => s.id === selectedShotId) || shots[0];
@@ -88,7 +116,7 @@ export default function App() {
     return compileScenePrompt(selectedCharacter, activeShot);
   }, [selectedCharacter, activeShot]);
 
-  // Voice synthesis (Web Speech API)
+  // Voice synthesis (Web Speech API) with custom pitch and rate
   const handleSpeak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     if (isSpeaking) {
@@ -98,6 +126,8 @@ export default function App() {
     }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pt-BR';
+    utterance.pitch = voicePitch;
+    utterance.rate = voiceRate;
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
     setIsSpeaking(true);
@@ -110,7 +140,7 @@ export default function App() {
 
     const userText = chatInput.trim();
     const updated = [...chatMessages, { sender: 'user' as const, text: userText }];
-    setChatMessages(updated);
+    updateChat(updated);
     setChatInput('');
     setIsThinking(true);
 
@@ -129,7 +159,8 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         const reply = data.reply || 'Entendido! Vamos em frente com a cena.';
-        setChatMessages(prev => [...prev, { sender: 'char' as const, text: reply }]);
+        const withReply = [...updated, { sender: 'char' as const, text: reply }];
+        updateChat(withReply);
         handleSpeak(reply);
       } else {
         throw new Error('Bridge error');
@@ -144,7 +175,8 @@ export default function App() {
       } else if (userText.toLowerCase().includes('cena')) {
         reply = 'Perfeito. Ajuste o enquadramento no Canvas e copie o prompt formatado em inglês para o Flow!';
       }
-      setChatMessages(prev => [...prev, { sender: 'char' as const, text: reply }]);
+      const withReply = [...updated, { sender: 'char' as const, text: reply }];
+      updateChat(withReply);
       handleSpeak(reply);
     } finally {
       setIsThinking(false);
@@ -206,14 +238,40 @@ export default function App() {
     setSelectedShotId(newId);
   };
 
-  const handleDeleteShot = (shotId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteShot = (shotId: string) => {
     if (shots.length <= 1) return;
     const remaining = shots.filter(s => s.id !== shotId);
     setShots(remaining);
     if (selectedShotId === shotId) {
       setSelectedShotId(remaining[0].id);
     }
+  };
+
+  // Upload handler for user generated videos/images from Google Flow
+  const handleUploadMedia = (shotId: string, file: File) => {
+    const isVideo = file.type.startsWith('video');
+    const url = URL.createObjectURL(file);
+    const updated = shots.map(s => {
+      if (s.id === shotId) {
+        return {
+          ...s,
+          mediaUrl: url,
+          mediaType: isVideo ? ('video' as const) : ('image' as const)
+        };
+      }
+      return s;
+    });
+    setShots(updated);
+  };
+
+  const handleRemoveMedia = (shotId: string) => {
+    const updated = shots.map(s => {
+      if (s.id === shotId) {
+        return { ...s, mediaUrl: undefined, mediaType: undefined };
+      }
+      return s;
+    });
+    setShots(updated);
   };
 
   const handleExportCharacter = () => {
@@ -265,7 +323,7 @@ export default function App() {
             }`}
           >
             <Film className="w-3.5 h-3.5 text-emerald-400" />
-            Scene Canvas
+            Buzzy Canvas
           </button>
         </div>
 
@@ -279,10 +337,6 @@ export default function App() {
               value={selectedCharId}
               onChange={(e) => {
                 setSelectedCharId(e.target.value);
-                const char = characters.find(c => c.id === e.target.value);
-                if (char) {
-                  setChatMessages([{ sender: 'char', text: char.greeting || 'Olá!' }]);
-                }
               }}
               className="bg-transparent text-xs font-semibold text-zinc-100 focus:outline-none cursor-pointer pr-1"
             >
@@ -372,6 +426,46 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Voice Calibration (Character.ai) */}
+              <div className="space-y-2 p-3.5 bg-zinc-900/40 rounded-xl border border-zinc-800/80">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                  Calibração de Voz da Persona
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex justify-between text-[11px] text-zinc-400 mb-1">
+                      <span>Tom (Pitch):</span>
+                      <span className="font-mono text-emerald-400">{voicePitch.toFixed(1)}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.5" 
+                      max="1.5" 
+                      step="0.1" 
+                      value={voicePitch} 
+                      onChange={(e) => setVoicePitch(parseFloat(e.target.value))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[11px] text-zinc-400 mb-1">
+                      <span>Velocidade (Rate):</span>
+                      <span className="font-mono text-emerald-400">{voiceRate.toFixed(1)}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.8" 
+                      max="1.4" 
+                      step="0.1" 
+                      value={voiceRate} 
+                      onChange={(e) => setVoiceRate(parseFloat(e.target.value))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Forbidden Words Badges */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
@@ -421,7 +515,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right: Character.ai Chat Simulator */}
+            {/* Right: Character.ai Chat Simulator with Persistent Memory */}
             <div className="w-[42%] flex flex-col bg-zinc-950/80">
               <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
@@ -439,8 +533,8 @@ export default function App() {
 
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá!' }])}
-                    title="Limpar Histórico"
+                    onClick={() => updateChat([{ sender: 'char', text: selectedCharacter.greeting || 'Olá!' }])}
+                    title="Limpar Histórico Salvo"
                     className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -521,238 +615,228 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* ================= SCENE CANVAS TAB (Buzzy.now) ================= */
+          /* ================= BUZZY CANVAS TAB (Buzzy.now with 2D Nodes & Flow Upload) ================= */
           <div className="flex-1 flex overflow-hidden">
-            {/* Column 1: Storyboard Shot Navigator (240px) */}
-            <div className="w-[240px] border-r border-zinc-800/80 bg-zinc-900/30 p-4 flex flex-col space-y-3 shrink-0 overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  Tomadas ({shots.length})
-                </h3>
+            {/* Left/Center Workspace: 2D Canvas OR Director Controls */}
+            <div className="flex-1 flex flex-col overflow-hidden border-r border-zinc-800/80">
+              {/* Canvas Sub-Header Controls */}
+              <div className="h-10 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                    Modo de Edição:
+                  </span>
+                  <div className="flex bg-zinc-950 p-0.5 rounded border border-zinc-800">
+                    <button
+                      onClick={() => setCanvasViewMode('graph')}
+                      className={`px-2.5 py-0.5 text-xs font-medium rounded flex items-center gap-1 ${
+                        canvasViewMode === 'graph' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Network className="w-3 h-3 text-emerald-400" />
+                      Canvas 2D de Nós (Buzzy)
+                    </button>
+                    <button
+                      onClick={() => setCanvasViewMode('director')}
+                      className={`px-2.5 py-0.5 text-xs font-medium rounded flex items-center gap-1 ${
+                        canvasViewMode === 'director' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Camera className="w-3 h-3 text-emerald-400" />
+                      Diretor de Parâmetros
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   onClick={handleAddShot}
-                  className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-md border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1"
+                  className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded border border-emerald-500/30 text-xs font-semibold flex items-center gap-1"
                 >
-                  <Plus className="w-3 h-3" />
-                  Nova
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar Cena no Canvas
                 </button>
               </div>
 
-              {/* Shot List */}
-              <div className="space-y-2">
-                {shots.map((shot, idx) => (
-                  <div
-                    key={shot.id}
-                    onClick={() => setSelectedShotId(shot.id)}
-                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all relative group ${
-                      selectedShotId === shot.id
-                        ? 'bg-zinc-800/90 border-emerald-500/80 shadow'
-                        : 'bg-zinc-900/60 border-zinc-800/80 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold">#0{idx + 1}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
-                          {shot.aspectRatio}
-                        </span>
+              {/* Workspace Content */}
+              <div className="flex-1 overflow-hidden relative">
+                {canvasViewMode === 'graph' ? (
+                  /* 2D Interactive React Flow Canvas */
+                  <SceneCanvas
+                    shots={shots}
+                    selectedShotId={selectedShotId}
+                    onSelectShot={setSelectedShotId}
+                    onUploadMedia={handleUploadMedia}
+                  />
+                ) : (
+                  /* Director Form Inspector */
+                  <div className="p-6 overflow-y-auto h-full space-y-4">
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                          Direção da Tomada — {activeShot.title}
+                        </h3>
+                        <p className="text-xs text-zinc-400">Ajuste os parâmetros visuais para alimentar o Google Flow.</p>
+                      </div>
+
+                      {/* Aspect Ratio Selector & Delete */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+                          {(['2:3', '9:16', '16:9', '1:1'] as const).map(ratio => (
+                            <button
+                              key={ratio}
+                              type="button"
+                              onClick={() => {
+                                const updated = shots.map(s => s.id === activeShot.id ? { ...s, aspectRatio: ratio } : s);
+                                setShots(updated);
+                              }}
+                              className={`px-2 py-0.5 text-[11px] font-mono font-medium rounded ${
+                                activeShot.aspectRatio === ratio
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'text-zinc-400 hover:text-white'
+                              }`}
+                            >
+                              {ratio}
+                            </button>
+                          ))}
+                        </div>
                         {shots.length > 1 && (
                           <button
                             type="button"
-                            onClick={(e) => handleDeleteShot(shot.id, e)}
-                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 p-0.5"
+                            onClick={() => handleDeleteShot(activeShot.id)}
+                            title="Excluir Tomada Atual"
+                            className="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-red-400 rounded-lg border border-zinc-800 transition-colors"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
                     </div>
-                    <h4 className="text-xs font-bold text-white truncate">{shot.title}</h4>
-                    <p className="text-[11px] text-zinc-400 truncate mt-0.5">{shot.framing}</p>
+
+                    {/* Title Input */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Título da Cena</label>
+                      <input
+                        type="text"
+                        value={activeShot.title}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, title: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    {/* Framing */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Enquadramento (Framing)</label>
+                        <div className="flex gap-1 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'A medium close-up, waist-up portrait' } : s);
+                              setShots(updated);
+                            }}
+                            className="text-zinc-400 hover:text-emerald-400"
+                          >
+                            [Plano Médio]
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'Close-up headshot tack sharp on eyes' } : s);
+                              setShots(updated);
+                            }}
+                            className="text-zinc-400 hover:text-emerald-400"
+                          >
+                            [Close-up]
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'Full body shot from head to toe' } : s);
+                              setShots(updated);
+                            }}
+                            className="text-zinc-400 hover:text-emerald-400"
+                          >
+                            [Corpo Inteiro]
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={activeShot.framing}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+
+                    {/* Camera Angle */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Ângulo da Câmera</label>
+                      <input
+                        type="text"
+                        value={activeShot.cameraAngle}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, cameraAngle: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+
+                    {/* Lighting */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Iluminação e Contraste</label>
+                      <input
+                        type="text"
+                        value={activeShot.lighting}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+
+                    {/* Environment */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Cenário / Ambiente</label>
+                      <textarea
+                        rows={2}
+                        value={activeShot.environment}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, environment: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+
+                    {/* Action */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Vestimenta & Ação</label>
+                      <textarea
+                        rows={2}
+                        value={activeShot.action}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, action: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
-            {/* Column 2: Director Stage (Flex-1) */}
-            <div className="flex-1 border-r border-zinc-800/80 p-6 overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-emerald-400" />
-                    Direção da Tomada — {activeShot.title}
-                  </h3>
-                  <p className="text-xs text-zinc-400">Ajuste ângulo, luz e enquadramento para compor o prompt consistente.</p>
-                </div>
-
-                {/* Aspect Ratio Selector */}
-                <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
-                  {(['2:3', '9:16', '16:9', '1:1'] as const).map(ratio => (
-                    <button
-                      key={ratio}
-                      type="button"
-                      onClick={() => {
-                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, aspectRatio: ratio } : s);
-                        setShots(updated);
-                      }}
-                      className={`px-2 py-0.5 text-[11px] font-mono font-medium rounded ${
-                        activeShot.aspectRatio === ratio
-                          ? 'bg-emerald-600 text-white'
-                          : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      {ratio}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Title Input */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Título da Cena</label>
-                <input
-                  type="text"
-                  value={activeShot.title}
-                  onChange={(e) => {
-                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, title: e.target.value } : s);
-                    setShots(updated);
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Framing */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Enquadramento (Framing)</label>
-                  <div className="flex gap-1 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'A medium close-up, waist-up portrait' } : s);
-                        setShots(updated);
-                      }}
-                      className="text-zinc-400 hover:text-emerald-400"
-                    >
-                      [Plano Médio]
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'Close-up headshot tack sharp on eyes' } : s);
-                        setShots(updated);
-                      }}
-                      className="text-zinc-400 hover:text-emerald-400"
-                    >
-                      [Close-up]
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'Full body shot from head to toe' } : s);
-                        setShots(updated);
-                      }}
-                      className="text-zinc-400 hover:text-emerald-400"
-                    >
-                      [Corpo Inteiro]
-                    </button>
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  value={activeShot.framing}
-                  onChange={(e) => {
-                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: e.target.value } : s);
-                    setShots(updated);
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-              </div>
-
-              {/* Camera Angle */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Ângulo da Câmera</label>
-                <input
-                  type="text"
-                  value={activeShot.cameraAngle}
-                  onChange={(e) => {
-                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, cameraAngle: e.target.value } : s);
-                    setShots(updated);
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-              </div>
-
-              {/* Lighting */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Iluminação e Contraste</label>
-                  <div className="flex gap-1 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: 'bright single-source direct hard sunlight at 45-degree angle casting harsh deep black shadows' } : s);
-                        setShots(updated);
-                      }}
-                      className="text-zinc-400 hover:text-emerald-400"
-                    >
-                      [Sol Duro 45º]
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: 'warm golden hour sun low on horizon, gentle rim light' } : s);
-                        setShots(updated);
-                      }}
-                      className="text-zinc-400 hover:text-emerald-400"
-                    >
-                      [Golden Hour]
-                    </button>
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  value={activeShot.lighting}
-                  onChange={(e) => {
-                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: e.target.value } : s);
-                    setShots(updated);
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-              </div>
-
-              {/* Environment */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Cenário / Ambiente (Environment)</label>
-                <textarea
-                  rows={2}
-                  value={activeShot.environment}
-                  onChange={(e) => {
-                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, environment: e.target.value } : s);
-                    setShots(updated);
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-              </div>
-
-              {/* Action / Attire */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Vestimenta & Ação da Tomada</label>
-                <textarea
-                  rows={2}
-                  value={activeShot.action}
-                  onChange={(e) => {
-                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, action: e.target.value } : s);
-                    setShots(updated);
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Column 3: Live Flow & Nano Banana Output (380px) */}
-            <div className="w-[380px] bg-zinc-950 p-5 flex flex-col space-y-3.5 shrink-0 overflow-y-auto">
+            {/* Column 3: Live Flow Output & Video Upload Panel (400px) */}
+            <div className="w-[400px] bg-zinc-950 p-5 flex flex-col space-y-4 shrink-0 overflow-y-auto">
               <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" />
@@ -761,6 +845,64 @@ export default function App() {
                 <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono border border-emerald-500/20">
                   Consistente
                 </span>
+              </div>
+
+              {/* Uploaded Video/Image Display Section (User generated in Google Flow) */}
+              <div className="space-y-2 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                    <Video className="w-3.5 h-3.5 text-emerald-400" />
+                    Mídia Gerada no Google Flow
+                  </label>
+                  {activeShot.mediaUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMedia(activeShot.id)}
+                      className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Remover
+                    </button>
+                  )}
+                </div>
+
+                {activeShot.mediaUrl ? (
+                  <div className="w-full h-40 rounded-lg overflow-hidden border border-zinc-700 bg-black flex items-center justify-center">
+                    {activeShot.mediaType === 'video' ? (
+                      <video 
+                        src={activeShot.mediaUrl} 
+                        controls 
+                        loop 
+                        autoPlay 
+                        className="w-full h-full object-contain" 
+                      />
+                    ) : (
+                      <img 
+                        src={activeShot.mediaUrl} 
+                        alt="Preview Flow" 
+                        className="w-full h-full object-contain" 
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <label className="w-full h-24 border-2 border-dashed border-zinc-800 hover:border-emerald-500/50 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all bg-zinc-950/40 p-2 text-center group">
+                    <Upload className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 mb-1" />
+                    <span className="text-[11px] text-zinc-400 group-hover:text-zinc-200 font-medium">
+                      Clique para enviar o vídeo/imagem gerado no Flow
+                    </span>
+                    <span className="text-[10px] text-zinc-600">MP4, WebM, PNG ou JPG</span>
+                    <input 
+                      type="file" 
+                      accept="video/*,image/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          handleUploadMedia(activeShot.id, e.target.files[0]);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               {/* Warnings Box */}
@@ -807,7 +949,7 @@ export default function App() {
                     {copiedPrompt ? 'Copiado!' : 'Copiar'}
                   </button>
                 </div>
-                <div className="flex-1 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 leading-relaxed overflow-y-auto select-all max-h-56">
+                <div className="flex-1 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 leading-relaxed overflow-y-auto select-all max-h-48">
                   {compilationResult.finalPrompt}
                 </div>
               </div>
