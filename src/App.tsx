@@ -62,6 +62,7 @@ export default function App() {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedNeg, setCopiedNeg] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
   // Chat State for Character.ai Simulator
   const selectedCharacter = useMemo(() => {
@@ -99,17 +100,38 @@ export default function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || isThinking) return;
 
     const userText = chatInput.trim();
     const updated = [...chatMessages, { sender: 'user' as const, text: userText }];
     setChatMessages(updated);
     setChatInput('');
+    setIsThinking(true);
 
-    // Simulated character Persona response logic
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterName: selectedCharacter.name,
+          personality: selectedCharacter.personality,
+          message: userText,
+          history: updated
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const reply = data.reply || 'Entendido! Vamos em frente.';
+        setChatMessages(prev => [...prev, { sender: 'char' as const, text: reply }]);
+        handleSpeak(reply);
+      } else {
+        throw new Error('Bridge error');
+      }
+    } catch {
+      // Local fallback if bridge is offline
       let reply = `Entendido! Para manter a fidelidade visual, vou me ater aos traços de ${selectedCharacter.name}.`;
       if (userText.toLowerCase().includes('luz') || userText.toLowerCase().includes('sol')) {
         reply = 'A iluminação forte a 45º dá um contraste fantástico, destacando as sombras naturais sem perder textura!';
@@ -120,7 +142,9 @@ export default function App() {
       }
       setChatMessages(prev => [...prev, { sender: 'char' as const, text: reply }]);
       handleSpeak(reply);
-    }, 600);
+    } finally {
+      setIsThinking(false);
+    }
   };
 
   const handleCopyPrompt = () => {
@@ -421,6 +445,14 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+                {isThinking && (
+                  <div className="flex flex-col items-start">
+                    <div className="bg-zinc-800/80 border border-emerald-500/30 rounded-2xl px-4 py-2 text-xs text-emerald-400 flex items-center gap-2 animate-pulse">
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                      {selectedCharacter.name} está pensando via AGY...
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Input Form */}
