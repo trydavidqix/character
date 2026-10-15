@@ -17,7 +17,9 @@ import { Video, Trash2, CheckCircle2 } from 'lucide-react';
 interface SceneCanvasProps {
   shots: SceneShot[];
   selectedShotId: string;
+  selectedShotIds: string[];
   onSelectShot: (id: string) => void;
+  onToggleSelectShot: (id: string) => void;
   onDeleteShot: (id: string) => void;
   onUploadMedia: (shotId: string, file: File) => void;
 }
@@ -25,14 +27,17 @@ interface SceneCanvasProps {
 // Custom Node for the 2D Storyboard Canvas
 const ShotNodeComponent = ({ data }: { data: any }) => {
   const shot: SceneShot = data.shot;
+  const isActive: boolean = data.isActive;
   const isSelected: boolean = data.isSelected;
 
   return (
     <div 
       onClick={() => data.onSelect(shot.id)}
       className={`w-72 rounded-xl bg-zinc-900/95 border text-left p-3 shadow-xl backdrop-blur transition-all cursor-pointer ${
-        isSelected 
+        isActive 
           ? 'border-emerald-500 shadow-emerald-500/20 ring-2 ring-emerald-500/40' 
+          : isSelected
+          ? 'border-emerald-500/60 ring-1 ring-emerald-500/30 bg-emerald-950/10'
           : 'border-zinc-800 hover:border-zinc-700'
       }`}
     >
@@ -45,22 +50,22 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              data.onSelect(shot.id);
+              data.onToggleSelect(shot.id);
             }}
             className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border transition-all flex items-center gap-1 ${
               isSelected 
                 ? 'bg-emerald-500 text-zinc-950 border-emerald-400 font-extrabold shadow-sm' 
-                : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:bg-zinc-700'
+                : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white hover:bg-zinc-700'
             }`}
-            title="Selecionar esta cena"
+            title="Marcar / Desmarcar cena (Atalho: H seleciona todas)"
           >
             {isSelected ? (
               <>
                 <CheckCircle2 className="w-3 h-3 text-zinc-950" />
-                Ativa
+                {isActive ? 'Ativa' : 'Selecionada'}
               </>
             ) : (
-              'Selecionar'
+              'Marcar'
             )}
           </button>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
@@ -134,7 +139,15 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
   );
 };
 
-export default function SceneCanvas({ shots, selectedShotId, onSelectShot, onDeleteShot, onUploadMedia }: SceneCanvasProps) {
+export default function SceneCanvas({ 
+  shots, 
+  selectedShotId, 
+  selectedShotIds,
+  onSelectShot, 
+  onToggleSelectShot,
+  onDeleteShot, 
+  onUploadMedia 
+}: SceneCanvasProps) {
   const nodeTypes = useMemo(() => ({ shotNode: ShotNodeComponent }), []);
 
   // Transform shots into ReactFlow nodes
@@ -147,13 +160,15 @@ export default function SceneCanvas({ shots, selectedShotId, onSelectShot, onDel
         shot,
         index,
         totalShots: shots.length,
-        isSelected: shot.id === selectedShotId,
+        isActive: shot.id === selectedShotId,
+        isSelected: selectedShotIds.includes(shot.id),
         onSelect: onSelectShot,
+        onToggleSelect: onToggleSelectShot,
         onDelete: onDeleteShot,
         onUpload: onUploadMedia,
       },
     }));
-  }, [shots, selectedShotId, onSelectShot, onDeleteShot, onUploadMedia]);
+  }, [shots, selectedShotId, selectedShotIds, onSelectShot, onToggleSelectShot, onDeleteShot, onUploadMedia]);
 
   // Connect shots sequentially with edges
   const edges: Edge[] = useMemo(() => {

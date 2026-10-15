@@ -67,6 +67,7 @@ export default function App() {
   
   const [shots, setShots] = useState<SceneShot[]>(initialShots);
   const [selectedShotId, setSelectedShotId] = useState<string>(initialShots[0].id);
+  const [selectedShotIds, setSelectedShotIds] = useState<string[]>([initialShots[0].id]);
 
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedNeg, setCopiedNeg] = useState(false);
@@ -100,6 +101,24 @@ export default function App() {
       setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá! Pronta para planejar nossa próxima cena?' }]);
     }
   }, [selectedCharId, selectedCharacter.greeting]);
+
+  // Global Keyboard Shortcut: 'H' toggles Select All / Deselect All
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        toggleSelectAll();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shots, selectedShotIds, selectedShotId]);
 
   // Helper to update and persist chat
   const updateChat = (newMsgs: { sender: 'user' | 'char'; text: string }[]) => {
@@ -242,9 +261,46 @@ export default function App() {
     if (shots.length <= 1) return;
     const remaining = shots.filter(s => s.id !== shotId);
     setShots(remaining);
+    setSelectedShotIds(prev => prev.filter(id => id !== shotId));
     if (selectedShotId === shotId) {
       setSelectedShotId(remaining[0].id);
     }
+  };
+
+  // Toggle selection for all shots with H shortcut (liga/desliga)
+  const toggleSelectAll = () => {
+    if (selectedShotIds.length === shots.length) {
+      // Turn OFF -> deselect all
+      setSelectedShotIds([]);
+    } else {
+      // Turn ON -> select all
+      setSelectedShotIds(shots.map(s => s.id));
+    }
+  };
+
+  const handleToggleSelectShot = (shotId: string) => {
+    if (selectedShotIds.includes(shotId)) {
+      setSelectedShotIds(selectedShotIds.filter(id => id !== shotId));
+    } else {
+      setSelectedShotIds([...selectedShotIds, shotId]);
+    }
+    setSelectedShotId(shotId);
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedShotIds.length === 0) return;
+    if (shots.length <= 1) return;
+    const remaining = shots.filter(s => !selectedShotIds.includes(s.id));
+    if (remaining.length === 0) {
+      const resetShot = [{ ...shots[0], title: 'Cena 1', mediaUrl: undefined, mediaType: undefined }];
+      setShots(resetShot);
+      setSelectedShotId(resetShot[0].id);
+      setSelectedShotIds([resetShot[0].id]);
+      return;
+    }
+    setShots(remaining);
+    setSelectedShotId(remaining[0].id);
+    setSelectedShotIds([remaining[0].id]);
   };
 
   // Upload handler for user generated videos/images from Google Flow
@@ -649,12 +705,30 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Option 1: Quick Select Scene */}
-                  <div className="flex items-center gap-1.5 bg-zinc-950 px-2.5 py-0.5 rounded border border-zinc-800">
-                    <span className="text-[11px] text-zinc-400 font-medium">Selecionar Cena:</span>
+                  {/* Atalho H: Selecionar Tudo (Liga/Desliga) */}
+                  <button
+                    onClick={toggleSelectAll}
+                    title="Pressione 'H' para selecionar ou desmarcar todas as cenas"
+                    className={`px-2.5 py-1 text-xs font-semibold rounded border transition-all flex items-center gap-1.5 ${
+                      selectedShotIds.length === shots.length && shots.length > 0
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                        : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:text-white hover:bg-zinc-800'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-3.5 h-3.5 ${selectedShotIds.length === shots.length && shots.length > 0 ? 'text-white' : 'text-emerald-400'}`} />
+                    {selectedShotIds.length === shots.length && shots.length > 0 ? 'Desmarcar Tudo [H]' : 'Selecionar Tudo [H]'}
+                  </button>
+
+                  {/* Quick Select Dropdown */}
+                  <div className="flex items-center gap-1 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
                     <select
                       value={selectedShotId}
-                      onChange={(e) => setSelectedShotId(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedShotId(e.target.value);
+                        if (!selectedShotIds.includes(e.target.value)) {
+                          setSelectedShotIds([...selectedShotIds, e.target.value]);
+                        }
+                      }}
                       className="bg-transparent text-xs font-semibold text-emerald-400 focus:outline-none cursor-pointer pr-1"
                     >
                       {shots.map((s, idx) => (
@@ -665,15 +739,20 @@ export default function App() {
                     </select>
                   </div>
 
-                  {/* Option 2: Delete Selected Scene */}
+                  {/* Delete Selected (Apagar Marcadas) */}
                   {shots.length > 1 && (
                     <button
-                      onClick={() => handleDeleteShot(selectedShotId)}
-                      title="Apagar Cena Ativa"
-                      className="px-2 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-900/50 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                      onClick={handleDeleteSelected}
+                      disabled={selectedShotIds.length === 0}
+                      title={selectedShotIds.length > 0 ? `Apagar ${selectedShotIds.length} cena(s) marcada(s)` : 'Nenhuma cena marcada para apagar'}
+                      className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        selectedShotIds.length > 0
+                          ? 'bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-900/50 cursor-pointer'
+                          : 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed opacity-60'
+                      }`}
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                      Apagar
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Apagar ({selectedShotIds.length})
                     </button>
                   )}
 
@@ -694,7 +773,9 @@ export default function App() {
                   <SceneCanvas
                     shots={shots}
                     selectedShotId={selectedShotId}
+                    selectedShotIds={selectedShotIds}
                     onSelectShot={setSelectedShotId}
+                    onToggleSelectShot={handleToggleSelectShot}
                     onDeleteShot={handleDeleteShot}
                     onUploadMedia={handleUploadMedia}
                   />
