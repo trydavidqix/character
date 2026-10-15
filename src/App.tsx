@@ -21,7 +21,8 @@ import {
   Settings,
   Clapperboard,
   Upload,
-  Paperclip
+  Paperclip,
+  Loader2
 } from 'lucide-react';
 import { CharacterSheet, SceneShot } from './core/types';
 import { defaultCharacters } from './core/defaultCharacters';
@@ -138,6 +139,7 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [generatingShotId, setGeneratingShotId] = useState<string | null>(null);
 
   const [voicePitch, setVoicePitch] = useState<number>(1.0);
   const [voiceRate, setVoiceRate] = useState<number>(1.0);
@@ -406,6 +408,76 @@ export default function App() {
     setShots(prev => [...prev, newShot]);
     setSelectedShotId(newId);
     setSelectedShotIds([newId]);
+  };
+
+  // Generate high-fidelity consistent character image via AGY CLI
+  const handleGenerateImageAgy = async (shotId: string, customPrompt?: string) => {
+    const targetShot = shots.find(s => s.id === shotId);
+    if (!targetShot) return;
+    setGeneratingShotId(shotId);
+
+    try {
+      const compiled = compileScenePrompt(selectedCharacter, targetShot);
+      const res = await fetch('http://localhost:3001/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: selectedCharacter.id,
+          characterName: selectedCharacter.name,
+          shotId: targetShot.id,
+          prompt: customPrompt || compiled.finalPrompt,
+          aspectRatio: targetShot.aspectRatio,
+          framing: targetShot.framing,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Bridge offline');
+      const data = await res.json();
+      if (data.imageUrl) {
+        setShots(prev => prev.map(s => s.id === shotId ? {
+          ...s,
+          mediaUrl: data.imageUrl,
+          mediaType: 'image',
+        } : s));
+      }
+    } catch (err) {
+      console.warn('Falha na ponte AGY, usando âncora visual:', err);
+      const fallbackUrl = selectedCharacter.id === 'david' 
+        ? '/generated/david-default.png' 
+        : '/generated/megalina-default.png';
+      setShots(prev => prev.map(s => s.id === shotId ? {
+        ...s,
+        mediaUrl: fallbackUrl,
+        mediaType: 'image',
+      } : s));
+    } finally {
+      setGeneratingShotId(null);
+    }
+  };
+
+  // Add scene from chat and immediately trigger AGY CLI image generation
+  const handleAddAndGenerateShot = (shotData: Partial<SceneShot>, customDialogue?: string) => {
+    const newId = `shot-${Date.now()}`;
+    const newShot: SceneShot = {
+      id: newId,
+      title: shotData.title || `Cena ${shots.length + 1} (Scene ${shots.length + 1})`,
+      framing: shotData.framing || 'Medium close-up portrait',
+      cameraAngle: shotData.cameraAngle || 'eye level',
+      cameraMovement: shotData.cameraMovement || 'Dolly In (Push forward)',
+      skillWorkflow: shotData.skillWorkflow || 'film',
+      lighting: shotData.lighting || 'cinematic studio lighting with rim light',
+      environment: shotData.environment || 'architectural space with natural light',
+      action: shotData.action || 'poised natural posture facing camera',
+      dialogueLine: customDialogue || shotData.dialogueLine || 'This is the key shot of the sequence.',
+      aspectRatio: shotData.aspectRatio || '16:9',
+    };
+
+    setShots(prev => [...prev, newShot]);
+    setSelectedShotId(newId);
+    setSelectedShotIds([newId]);
+    setTimeout(() => {
+      handleGenerateImageAgy(newId, compileScenePrompt(selectedCharacter, newShot).finalPrompt);
+    }, 50);
   };
 
   // Load entire multi-scene story package into active storyboard
@@ -742,17 +814,36 @@ export default function App() {
                   <p className="text-[10px] text-zinc-400 truncate mt-0.5">{shot.framing}</p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCopyFlowPrompt(shot);
-                  }}
-                  title="Copiar Prompt do Flow"
-                  className="p-1 text-zinc-500 hover:text-emerald-400 rounded shrink-0"
-                >
-                  {copiedPromptId === shot.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    disabled={generatingShotId === shot.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGenerateImageAgy(shot.id);
+                    }}
+                    title="Gerar Imagem via AGY CLI"
+                    className="p-1 text-zinc-500 hover:text-emerald-400 rounded transition-colors"
+                  >
+                    {generatingShotId === shot.id ? (
+                      <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyFlowPrompt(shot);
+                    }}
+                    title="Copiar Prompt do Flow"
+                    className="p-1 text-zinc-500 hover:text-emerald-400 rounded"
+                  >
+                    {copiedPromptId === shot.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -924,11 +1015,25 @@ export default function App() {
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 pt-1 border-t border-zinc-800/60">
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/60">
+                      <button
+                        type="button"
+                        disabled={generatingShotId !== null}
+                        onClick={() => handleAddAndGenerateShot(msg.suggestedShot!, msg.text)}
+                        className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 transition-all shadow-sm"
+                      >
+                        {generatingShotId ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
+                        ✨ Gerar Imagem (AGY CLI)
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => handleAddShotToProject(msg.suggestedShot!, msg.text)}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 transition-all shadow-sm"
+                        className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 font-medium text-[10px] rounded-lg flex items-center gap-1 transition-all"
                       >
                         <Plus className="w-3 h-3" />
                         Adicionar ao Roteiro
@@ -1023,7 +1128,7 @@ export default function App() {
                     </div>
 
                     {/* Master Action Buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-800">
                       <button
                         type="button"
                         onClick={() => handleLoadEntireStoryPackage(msg.storyPackage!)}
@@ -1031,6 +1136,26 @@ export default function App() {
                       >
                         <Plus className="w-3.5 h-3.5" />
                         Carregar Todas as {msg.storyPackage.shots.length} Cenas no Projeto
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={generatingShotId !== null}
+                        onClick={() => {
+                          handleLoadEntireStoryPackage(msg.storyPackage!);
+                          if (msg.storyPackage!.shots.length > 0) {
+                            const first = msg.storyPackage!.shots[0];
+                            handleGenerateImageAgy(first.id, compileScenePrompt(selectedCharacter, first).finalPrompt);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md transition-all"
+                      >
+                        {generatingShotId ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        ✨ Gerar 1ª Cena no AGY CLI
                       </button>
 
                       <button
@@ -1204,6 +1329,8 @@ export default function App() {
               onRangeSelectShot={handleRangeSelectShot}
               onDeleteShot={handleDeleteShot}
               onUploadMedia={handleUploadMedia}
+              onGenerateImage={handleGenerateImageAgy}
+              generatingShotId={generatingShotId}
             />
           </div>
         </div>

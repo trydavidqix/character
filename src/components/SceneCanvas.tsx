@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { SceneShot } from '../core/types';
-import { Video, Trash2, CheckCircle2 } from 'lucide-react';
+import { Video, Trash2, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
 
 interface SceneCanvasProps {
   shots: SceneShot[];
@@ -23,6 +23,8 @@ interface SceneCanvasProps {
   onRangeSelectShot?: (id: string) => void;
   onDeleteShot: (id: string) => void;
   onUploadMedia: (shotId: string, file: File) => void;
+  onGenerateImage?: (shotId: string) => void;
+  generatingShotId?: string | null;
 }
 
 // Custom Node for the 2D Storyboard Canvas
@@ -115,33 +117,73 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
       {/* Video or Image Preview */}
       <div className="w-full h-36 bg-zinc-950 rounded-lg overflow-hidden border border-zinc-800/80 mb-2 relative group flex items-center justify-center">
         {shot.mediaUrl ? (
-          shot.mediaType === 'video' ? (
-            <video 
-              src={shot.mediaUrl} 
-              autoPlay 
-              loop 
-              muted 
-              playsInline 
-              className="w-full h-full object-cover" 
-            />
-          ) : (
-            <img 
-              src={shot.mediaUrl} 
-              alt={shot.title} 
-              className="w-full h-full object-cover" 
-            />
-          )
+          <>
+            {shot.mediaType === 'video' ? (
+              <video 
+                src={shot.mediaUrl} 
+                autoPlay 
+                loop 
+                muted 
+                playsInline 
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <img 
+                src={shot.mediaUrl} 
+                alt={shot.title} 
+                className="w-full h-full object-cover" 
+              />
+            )}
+            {data.onGenerate && (
+              <button
+                type="button"
+                title="Regerar Imagem via AGY CLI"
+                disabled={data.isGenerating}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  data.onGenerate(shot.id);
+                }}
+                className="absolute top-2 right-2 p-1.5 bg-zinc-950/80 hover:bg-zinc-900 text-emerald-400 hover:text-emerald-300 rounded-lg border border-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity shadow-md flex items-center gap-1 text-[10px] font-bold"
+              >
+                {data.isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </>
         ) : (
-          <div className="flex flex-col items-center justify-center text-zinc-600 gap-1.5 p-4 text-center">
-            <Video className="w-6 h-6 text-zinc-700" />
+          <div className="flex flex-col items-center justify-center text-zinc-600 gap-1.5 p-3 text-center">
+            <Video className="w-5 h-5 text-zinc-700" />
             <span className="text-[10px] font-medium text-zinc-500">
               Aguardando vídeo gerado no Flow
             </span>
+            {data.onGenerate && (
+              <button
+                type="button"
+                disabled={data.isGenerating}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  data.onGenerate(shot.id);
+                }}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-md text-[10px] font-bold flex items-center gap-1 shadow-md shadow-emerald-950 transition-all mt-0.5"
+                title="Gerar Imagem de alta fidelidade usando o agy CLI"
+              >
+                {data.isGenerating ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Gerando (AGY)...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3" />
+                    Gerar Imagem (AGY CLI)
+                  </>
+                )}
+              </button>
+            )}
             <label 
               onClick={(e) => e.stopPropagation()}
-              className="cursor-pointer text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold underline mt-0.5"
+              className="cursor-pointer text-[10px] text-zinc-400 hover:text-zinc-200 underline mt-0.5"
             >
-              Enviar arquivo
+              Ou enviar arquivo
               <input 
                 type="file" 
                 accept="video/*,image/*" 
@@ -192,7 +234,9 @@ export default function SceneCanvas({
   onToggleSelectShot,
   onRangeSelectShot,
   onDeleteShot, 
-  onUploadMedia 
+  onUploadMedia,
+  onGenerateImage,
+  generatingShotId
 }: SceneCanvasProps) {
   const nodeTypes = useMemo(() => ({ shotNode: ShotNodeComponent }), []);
 
@@ -209,14 +253,16 @@ export default function SceneCanvas({
         totalShots: shots.length,
         isActive: shot.id === selectedShotId,
         isSelected: selectedShotIds.includes(shot.id),
+        isGenerating: generatingShotId === shot.id,
         onSelect: onSelectShot,
         onToggleSelect: onToggleSelectShot,
         onRangeSelect: onRangeSelectShot,
         onDelete: onDeleteShot,
         onUpload: onUploadMedia,
+        onGenerate: onGenerateImage,
       },
     }));
-  }, [shots, selectedShotId, selectedShotIds, onSelectShot, onToggleSelectShot, onRangeSelectShot, onDeleteShot, onUploadMedia]);
+  }, [shots, selectedShotId, selectedShotIds, generatingShotId, onSelectShot, onToggleSelectShot, onRangeSelectShot, onDeleteShot, onUploadMedia, onGenerateImage]);
 
   // Connect shots sequentially with edges
   const edges: Edge[] = useMemo(() => {
