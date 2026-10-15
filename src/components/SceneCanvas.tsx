@@ -45,7 +45,7 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
           data.onSelect(shot.id);
         }
       }}
-      title="Clique para selecionar. Segure Ctrl para selecionar múltiplos cards."
+      title="Click to select. Hold Ctrl to select multiple cards, or Shift for range."
       className={`w-72 rounded-xl bg-zinc-900/95 border text-left p-3 shadow-xl backdrop-blur transition-all cursor-pointer select-none ${
         isActive 
           ? 'border-emerald-500 shadow-emerald-500/20 ring-2 ring-emerald-500/40' 
@@ -58,7 +58,7 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
 
       {/* Node Header with Select and Delete buttons */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={(e) => {
@@ -70,20 +70,31 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
                 ? 'bg-emerald-500 text-zinc-950 border-emerald-400 font-extrabold shadow-sm' 
                 : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white hover:bg-zinc-700'
             }`}
-            title="Marcar / Desmarcar cena (Segure Ctrl no card ou pressione H)"
+            title="Toggle card selection (Hold Ctrl on card or press H)"
           >
             {isSelected ? (
               <>
                 <CheckCircle2 className="w-3 h-3 text-zinc-950" />
-                {isActive ? 'Ativa' : 'Selecionada'}
+                {isActive ? 'Active' : 'Selected'}
               </>
             ) : (
-              'Marcar'
+              'Select'
             )}
           </button>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
             {shot.aspectRatio}
           </span>
+          {shot.skillWorkflow && (
+            <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border ${
+              shot.skillWorkflow === 'film' 
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
+                : shot.skillWorkflow === 'ads'
+                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                : 'bg-pink-500/20 text-pink-300 border-pink-500/40'
+            }`}>
+              AI {shot.skillWorkflow}
+            </span>
+          )}
         </div>
 
         {data.totalShots > 1 && (
@@ -93,7 +104,7 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
               e.stopPropagation();
               data.onDelete(shot.id);
             }}
-            title="Apagar esta cena"
+            title="Delete this scene"
             className="p-1 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -124,13 +135,13 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
           <div className="flex flex-col items-center justify-center text-zinc-600 gap-1.5 p-4 text-center">
             <Video className="w-6 h-6 text-zinc-700" />
             <span className="text-[10px] font-medium text-zinc-500">
-              Aguardando vídeo gerado no Flow
+              Awaiting video generated in Flow
             </span>
             <label 
               onClick={(e) => e.stopPropagation()}
               className="cursor-pointer text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold underline mt-0.5"
             >
-              Enviar arquivo
+              Upload file
               <input 
                 type="file" 
                 accept="video/*,image/*" 
@@ -146,9 +157,27 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
         )}
       </div>
 
+      {/* Camera Movement Tag (Buzzy Motion Control) */}
+      {shot.cameraMovement && (
+        <div className="mb-1">
+          <span className="text-[9px] font-mono font-medium text-cyan-300 bg-cyan-950/50 border border-cyan-800/50 px-1.5 py-0.5 rounded inline-block max-w-full truncate">
+            🎥 {shot.cameraMovement}
+          </span>
+        </div>
+      )}
+
       {/* Shot Title and Details */}
       <h4 className="text-xs font-bold text-white truncate">{shot.title}</h4>
       <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">{shot.framing}</p>
+
+      {/* Character.ai Spoken Dialogue Quote */}
+      {shot.dialogueLine && (
+        <div className="mt-1.5 p-1.5 rounded bg-emerald-950/20 border border-emerald-900/30">
+          <p className="text-[10px] text-emerald-300 italic line-clamp-1">
+            "{shot.dialogueLine}"
+          </p>
+        </div>
+      )}
 
       <Handle type="source" position={Position.Right} className="w-3 h-3 bg-emerald-500 border-2 border-zinc-950" />
     </div>

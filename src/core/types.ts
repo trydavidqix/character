@@ -26,17 +26,25 @@ export interface CharacterSheet {
   negativePromptEn: string;
   standardReferences: string[];
   bodyReferences?: string[];
+  tagline?: string;
   greeting?: string;
   personality?: string;
   dialogueExamples?: CharacterDialogueExample[];
   observation?: string;
+  voicePitch?: number;
+  voiceRate?: number;
+  avatarUrl?: string;
 }
+
+export type SkillWorkflowType = 'film' | 'ads' | 'animation' | 'custom';
 
 export interface SceneShot {
   id: string;
   title: string;
   framing: string;
   cameraAngle: string;
+  cameraMovement?: string;
+  skillWorkflow?: SkillWorkflowType;
   lighting: string;
   environment: string;
   action: string;
@@ -46,6 +54,7 @@ export interface SceneShot {
   mediaType?: 'video' | 'image';
   audioUrl?: string;
   audioName?: string;
+  dialogueLine?: string;
 }
 
 export interface CompiledPromptResult {
@@ -57,4 +66,6 @@ export interface CompiledPromptResult {
   characterId: string;
   shotId?: string;
   aspectRatio: string;
+  skillWorkflow?: SkillWorkflowType;
+  cameraMovement?: string;
 }

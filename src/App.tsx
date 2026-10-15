@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   User, 
   Film, 
@@ -9,26 +9,61 @@ import {
   VolumeX, 
   Send, 
   ShieldAlert, 
-  Layers, 
   Camera, 
   Plus, 
   Download, 
-  RefreshCw,
-  Trash2,
-  CheckCircle2,
-  Upload,
-  Video,
-  Sliders,
-  Network,
-  Music,
-  FileText
+  RefreshCw, 
+  Trash2, 
+  CheckCircle2, 
+  Upload, 
+  Video, 
+  Sliders, 
+  Network, 
+  Music, 
+  FileText, 
+  ChevronLeft, 
+  ChevronRight, 
+  Wand2, 
+  Edit3, 
+  X
 } from 'lucide-react';
-import { CharacterSheet, SceneShot } from './core/types';
+import { CharacterSheet, SceneShot, SkillWorkflowType } from './core/types';
 import { defaultCharacters } from './core/defaultCharacters';
 import { compileScenePrompt } from './core/promptCompiler';
 import { exportProjectJson, exportFlowPromptsText, parseProjectJson } from './core/projectExporter';
+import { buzzyWorkflowTemplates, BuzzyTemplate } from './core/buzzyTemplates';
 import SceneCanvas from './components/SceneCanvas';
 import TimelinePlayer from './components/TimelinePlayer';
+
+// Chat message interface with Character.ai swipe support
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'char';
+  text: string;
+  alternatives?: string[];
+  activeAltIndex?: number;
+}
+
+// Buzzy Camera Movements (Buzzy Pro Motion Engine)
+export const buzzyCameraMovements = [
+  'Static / None',
+  'Dolly In (Push forward)',
+  'Dolly Out (Pull back)',
+  'Orbit 360 (Circular rotation)',
+  'FPV Drone (Dynamic flythrough)',
+  'Low-Angle Hero (Upward power shot)',
+  'Cinematic Pan (Smooth lateral sweep)',
+  'Crane / Boom Down (High to eye-level)',
+  'Handheld Documentary (Realistic shake)',
+];
+
+// Buzzy Pre-built Skills
+export const buzzySkillsList: { id: SkillWorkflowType; label: string; icon: string; desc: string }[] = [
+  { id: 'film', label: 'AI Film', icon: '🎬', desc: 'Cinematic storytelling, 35mm filmic lighting, master color grading' },
+  { id: 'ads', label: 'AI Ads', icon: '📢', desc: 'High-conversion viral commercial hooks, vibrant studio marketing aesthetic' },
+  { id: 'animation', label: 'AI Animation', icon: '✨', desc: 'Expressive anime dynamics, cel-shaded rendering, vibrant keyframes' },
+  { id: 'custom', label: 'Custom', icon: '⚙️', desc: 'Full manual control over scene framing and aesthetics' },
+];
 
 const initialShots: SceneShot[] = [
   {
@@ -36,32 +71,64 @@ const initialShots: SceneShot[] = [
     title: 'Historic Limestone Portrait',
     framing: 'A medium close-up, waist-up portrait',
     cameraAngle: 'chest facing camera, head turned forty-five degrees to the right',
+    cameraMovement: 'Dolly In (Push forward)',
+    skillWorkflow: 'film',
     lighting: 'bright single-source direct hard sunlight at 45-degree angle casting harsh deep black shadows with specular highlights',
     environment: 'warm light beige raw-cut limestone environment with a massive rough-pitted carved stone pillar base on the right and weathered facade on the left',
     action: 'wearing an off-white wrinkly linen shirt deeply unbuttoned with a thin gold chain, relaxed posture, confident guarded expression',
-    aspectRatio: '2:3',
+    dialogueLine: 'We have to capture this light before the sun dips behind the facade.',
+    aspectRatio: '16:9',
   },
   {
     id: 'shot-2',
     title: 'Poolside Sunset Glow',
     framing: 'Medium portrait framing from chest up',
     cameraAngle: 'three-quarter view looking slightly away from lens',
+    cameraMovement: 'Cinematic Pan (Smooth lateral sweep)',
+    skillWorkflow: 'film',
     lighting: 'warm golden hour sun low on horizon, gentle rim light illuminating hair waves',
     environment: 'luxury outdoor infinity pool edge overlooking distant terracotta tiled villas',
     action: 'natural spontaneous gentle smile, arms leaning on stone pool railing, wind blowing loose strands of hair',
+    dialogueLine: 'The contrast right here is completely unmatched.',
     aspectRatio: '9:16',
   },
   {
     id: 'shot-3',
-    title: 'Editorial Studio Focus',
+    title: 'Commercial Studio Focus',
     framing: 'Close-up headshot tack sharp on eyes and accessories',
     cameraAngle: 'straight on at eye level',
+    cameraMovement: 'Orbit 360 (Circular rotation)',
+    skillWorkflow: 'ads',
     lighting: 'dramatic split studio lighting with high contrast and deep shadows',
     environment: 'neutral textured charcoal grey matte backdrop',
     action: 'direct piercing gaze into camera lens, composed neutral expression with subtle poise',
+    dialogueLine: 'Check the link below to experience the full workflow.',
     aspectRatio: '1:1',
   }
 ];
+
+// Rich dialogue renderer separating *actions* from spoken lines (Character.ai style)
+function FormattedDialogueText({ text }: { text: string }) {
+  const parts = text.split(/(\*[^*]+\*)/g);
+  return (
+    <div className="leading-relaxed whitespace-pre-wrap">
+      {parts.map((part, i) => {
+        if (part.startsWith('*') && part.endsWith('*')) {
+          const actionText = part.slice(1, -1);
+          return (
+            <span 
+              key={i} 
+              className="inline-block text-emerald-400 italic bg-emerald-950/40 border border-emerald-800/40 px-1.5 py-0.5 rounded text-[11px] font-medium mx-0.5"
+            >
+              *{actionText}*
+            </span>
+          );
+        }
+        return <span key={i} className="text-zinc-100">{part}</span>;
+      })}
+    </div>
+  );
+}
 
 export default function App() {
   const [characters, setCharacters] = useState<CharacterSheet[]>(defaultCharacters);
@@ -73,6 +140,14 @@ export default function App() {
   const [selectedShotId, setSelectedShotId] = useState<string>(initialShots[0].id);
   const [selectedShotIds, setSelectedShotIds] = useState<string[]>([initialShots[0].id]);
 
+  // Buzzy Skills Workflow filter
+  const [activeSkillFilter, setActiveSkillFilter] = useState<SkillWorkflowType | 'all'>('all');
+  const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
+
+  // Character.ai Persona Editor modal
+  const [isCharacterEditorOpen, setIsCharacterEditorOpen] = useState(false);
+  const [editingCharacter, setEditingCharacter] = useState<CharacterSheet>(defaultCharacters[0]);
+
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedNeg, setCopiedNeg] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -82,7 +157,7 @@ export default function App() {
   // Streaming Typewriter state (Character.ai style)
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const chatBottomRef = React.useRef<HTMLDivElement | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // Voice Settings for Character.ai
   const [voicePitch, setVoicePitch] = useState<number>(1.0);
@@ -93,8 +168,8 @@ export default function App() {
     return characters.find(c => c.id === selectedCharId) || characters[0];
   }, [characters, selectedCharId]);
 
-  // Persistent Chat History per Character (LocalStorage)
-  const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'char'; text: string }[]>([]);
+  // Persistent Chat History per Character (LocalStorage) with Swipe support
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [newForbiddenTag, setNewForbiddenTag] = useState('');
 
@@ -108,14 +183,37 @@ export default function App() {
     const saved = localStorage.getItem(`char_chat_${selectedCharId}`);
     if (saved) {
       try {
-        setChatMessages(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Normalize messages to ChatMessage interface
+        const normalized: ChatMessage[] = parsed.map((m: any, idx: number) => ({
+          id: m.id || `msg-${idx}-${Date.now()}`,
+          sender: m.sender || 'char',
+          text: m.text || '',
+          alternatives: m.alternatives || [m.text || ''],
+          activeAltIndex: m.activeAltIndex || 0,
+        }));
+        setChatMessages(normalized);
       } catch {
-        setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá!' }]);
+        setChatMessages([{
+          id: `msg-${Date.now()}`,
+          sender: 'char',
+          text: selectedCharacter.greeting || 'Hello! Ready to shoot the next scene?',
+          alternatives: [selectedCharacter.greeting || 'Hello! Ready to shoot the next scene?'],
+          activeAltIndex: 0,
+        }]);
       }
     } else {
-      setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá! Pronta para planejar nossa próxima cena?' }]);
+      setChatMessages([{
+        id: `msg-${Date.now()}`,
+        sender: 'char',
+        text: selectedCharacter.greeting || 'Hello! Ready to plan our next cinematic storyboard?',
+        alternatives: [selectedCharacter.greeting || 'Hello! Ready to plan our next cinematic storyboard?'],
+        activeAltIndex: 0,
+      }]);
     }
-  }, [selectedCharId, selectedCharacter.greeting]);
+    if (selectedCharacter.voicePitch) setVoicePitch(selectedCharacter.voicePitch);
+    if (selectedCharacter.voiceRate) setVoiceRate(selectedCharacter.voiceRate);
+  }, [selectedCharId, selectedCharacter.greeting, selectedCharacter.voicePitch, selectedCharacter.voiceRate]);
 
   // Global Keyboard Shortcut: 'H' toggles Select All / Deselect All
   useEffect(() => {
@@ -136,13 +234,13 @@ export default function App() {
   }, [shots, selectedShotIds, selectedShotId]);
 
   // Helper to update and persist chat
-  const updateChat = (newMsgs: { sender: 'user' | 'char'; text: string }[]) => {
+  const updateChat = (newMsgs: ChatMessage[]) => {
     setChatMessages(newMsgs);
     localStorage.setItem(`char_chat_${selectedCharId}`, JSON.stringify(newMsgs));
   };
 
   const activeShot = useMemo(() => {
-    return shots.find(s => s.id === selectedShotId) || shots[0];
+    return shots.find(s => s.id === selectedShotId) || shots[0] || initialShots[0];
   }, [shots, selectedShotId]);
 
   // Live Compiled Result from the Consistency Engine
@@ -158,277 +256,314 @@ export default function App() {
       setIsSpeaking(false);
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'pt-BR';
+
+    const cleanText = text.replace(/\*(.*?)\*/g, '').trim();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.pitch = voicePitch;
     utterance.rate = voiceRate;
+    utterance.lang = 'en-US';
+
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoice = voices.find(v => v.lang.startsWith('en') && (selectedCharacter.gender === 'f' ? v.name.includes('Female') || v.name.includes('Zira') || v.name.includes('Samantha') : true));
+    if (englishVoice) utterance.voice = englishVoice;
+
+    utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
-    setIsSpeaking(true);
+
     window.speechSynthesis.speak(utterance);
   };
 
-  // Streaming Typewriter animation for Character.ai response parity
-  const streamReply = (fullText: string, baseHistory: { sender: 'user' | 'char'; text: string }[]) => {
+  // Typewriter streaming effect for Character.ai dialogue
+  const streamResponse = (fullText: string, messageId: string) => {
     setIsStreaming(true);
-    let index = 0;
-    const chunkSize = 2;
-    const intervalMs = 18;
-
     setStreamingText('');
-
+    let currentIdx = 0;
     const interval = setInterval(() => {
-      index += chunkSize;
-      if (index >= fullText.length) {
+      currentIdx += 2;
+      if (currentIdx >= fullText.length) {
         clearInterval(interval);
         setStreamingText(null);
         setIsStreaming(false);
-        const finalMsgs = [...baseHistory, { sender: 'char' as const, text: fullText }];
-        updateChat(finalMsgs);
-        handleSpeak(fullText);
+        setChatMessages(prev => {
+          const next = prev.map(m => m.id === messageId ? { ...m, text: fullText } : m);
+          localStorage.setItem(`char_chat_${selectedCharId}`, JSON.stringify(next));
+          return next;
+        });
       } else {
-        setStreamingText(fullText.slice(0, index));
+        setStreamingText(fullText.slice(0, currentIdx));
       }
-    }, intervalMs);
+    }, 18);
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Send message to Character dialogue server (or local persona generator)
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!chatInput.trim() || isThinking || isStreaming) return;
 
     const userText = chatInput.trim();
-    const updated = [...chatMessages, { sender: 'user' as const, text: userText }];
-    updateChat(updated);
     setChatInput('');
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      sender: 'user',
+      text: userText,
+    };
+
+    const nextMessages = [...chatMessages, userMessage];
+    updateChat(nextMessages);
     setIsThinking(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          characterName: selectedCharacter.name,
-          personality: selectedCharacter.personality,
-          message: userText,
-          history: updated
+          character: selectedCharacter,
+          messages: nextMessages.map(m => ({ sender: m.sender, text: m.text })),
+          prompt: userText,
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const reply = data.reply || 'Entendido! Vamos em frente com a cena.';
-        streamReply(reply, updated);
-      } else {
-        throw new Error('Bridge error');
-      }
-    } catch {
-      // Offline fallback
-      let reply = `Entendido! Para manter a fidelidade visual, vou me ater aos traços de ${selectedCharacter.name}.`;
-      if (userText.toLowerCase().includes('luz') || userText.toLowerCase().includes('sol')) {
-        reply = 'A iluminação forte a 45º dá um contraste fantástico, destacando as sombras naturais sem perder textura!';
-      } else if (userText.toLowerCase().includes('roupa') || userText.toLowerCase().includes('estilo')) {
-        reply = 'Aprovado! Peças de linho e tons neutros funcionam perfeitamente com os tons quentes das nossas referências.';
-      } else if (userText.toLowerCase().includes('cena')) {
-        reply = 'Perfeito. Ajuste o enquadramento no Canvas e copie o prompt formatado em inglês para o Flow!';
-      }
-      streamReply(reply, updated);
-    } finally {
+      if (!response.ok) throw new Error('Bridge offline');
+      const data = await response.json();
+      const botReply = data.reply || selectedCharacter.greeting || 'Ready for the next shot!';
+
+      const botMessageId = `char-${Date.now()}`;
+      const newBotMsg: ChatMessage = {
+        id: botMessageId,
+        sender: 'char',
+        text: '',
+        alternatives: [botReply],
+        activeAltIndex: 0,
+      };
+
+      updateChat([...nextMessages, newBotMsg]);
       setIsThinking(false);
+      streamResponse(botReply, botMessageId);
+    } catch {
+      // Local fallback with roleplay actions and natural speech
+      const fallbackOptions = [
+        `*adjusts the collar and looks at the camera* We should definitely use directional 45-degree sunlight here for maximum facial sharpness.`,
+        `*checks the viewfinder with a focused smile* The 35mm filmic depth of field will keep our facial features crisp while softening the background.`,
+        `*points toward the courtyard* Let's anchor the shot with a slow Dolly In to build suspense and dramatic focus.`
+      ];
+      const botReply = fallbackOptions[Math.floor(Math.random() * fallbackOptions.length)];
+      const botMessageId = `char-${Date.now()}`;
+      const newBotMsg: ChatMessage = {
+        id: botMessageId,
+        sender: 'char',
+        text: '',
+        alternatives: fallbackOptions,
+        activeAltIndex: 0,
+      };
+
+      updateChat([...nextMessages, newBotMsg]);
+      setIsThinking(false);
+      streamResponse(botReply, botMessageId);
     }
   };
 
+  // Character.ai Swipe Mechanism: Swipe between alternative replies
+  const handleSwipeAlternative = (messageId: string, direction: 'prev' | 'next') => {
+    setChatMessages(prev => {
+      const updated = prev.map(m => {
+        if (m.id !== messageId || !m.alternatives || m.alternatives.length === 0) return m;
+        const total = m.alternatives.length;
+        let nextIndex = (m.activeAltIndex || 0) + (direction === 'next' ? 1 : -1);
+        if (nextIndex < 0) nextIndex = total - 1;
+        if (nextIndex >= total) nextIndex = 0;
+        return {
+          ...m,
+          activeAltIndex: nextIndex,
+          text: m.alternatives[nextIndex],
+        };
+      });
+      localStorage.setItem(`char_chat_${selectedCharId}`, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Character.ai Dialogue to Buzzy Scene Shot Bridge: Create card from spoken line
+  const handleAddShotFromDialogue = (dialogueText: string) => {
+    const actionMatch = dialogueText.match(/\*(.*?)\*/);
+    const actionText = actionMatch ? actionMatch[1].trim() : 'delivering dialogue with expressive emotion';
+    const cleanDialogue = dialogueText.replace(/\*(.*?)\*/g, '').trim();
+
+    const newShot: SceneShot = {
+      id: `shot-${Date.now()}`,
+      title: `${selectedCharacter.name}: Scene ${shots.length + 1}`,
+      framing: 'A medium close-up, chest-up portrait',
+      cameraAngle: 'straight on eye level with crisp focus on subject',
+      cameraMovement: 'Dolly In (Push forward)',
+      skillWorkflow: 'film',
+      lighting: activeShot.lighting || 'bright single-source direct sunlight casting sharp shadows',
+      environment: activeShot.environment || 'historic limestone architecture with clean lighting',
+      action: actionText,
+      dialogueLine: cleanDialogue,
+      aspectRatio: activeShot.aspectRatio || '16:9',
+    };
+
+    setShots(prev => [...prev, newShot]);
+    setSelectedShotId(newShot.id);
+    setSelectedShotIds([newShot.id]);
+    setActiveTab('canvas');
+  };
+
+  // Load Buzzy Pre-built Storyboard Template
+  const handleLoadBuzzyTemplate = (template: BuzzyTemplate) => {
+    const newShots: SceneShot[] = template.shots.map((s, idx) => ({
+      ...s,
+      id: `shot-${Date.now()}-${idx}`,
+    }));
+    setShots(newShots);
+    setSelectedShotId(newShots[0].id);
+    setSelectedShotIds([newShots[0].id]);
+    setIsTemplateMenuOpen(false);
+  };
+
+  // Copy Prompt
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(compilationResult.finalPrompt);
     setCopiedPrompt(true);
     setTimeout(() => setCopiedPrompt(false), 2000);
   };
 
+  // Copy Negative Prompt
   const handleCopyNeg = () => {
     navigator.clipboard.writeText(compilationResult.negativePrompt);
     setCopiedNeg(true);
     setTimeout(() => setCopiedNeg(false), 2000);
   };
 
-  const handleAddForbidden = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newForbiddenTag.trim()) {
-      e.preventDefault();
-      const word = newForbiddenTag.trim().toLowerCase();
-      if (!selectedCharacter.forbiddenWords.includes(word)) {
-        const updated = characters.map(c => {
-          if (c.id === selectedCharacter.id) {
-            return { ...c, forbiddenWords: [...c.forbiddenWords, word] };
-          }
-          return c;
-        });
-        setCharacters(updated);
-      }
-      setNewForbiddenTag('');
-    }
+  // Selection toggles
+  const handleSelectShot = (id: string) => {
+    setSelectedShotId(id);
+    setSelectedShotIds([id]);
   };
 
-  const handleRemoveForbidden = (word: string) => {
-    const updated = characters.map(c => {
-      if (c.id === selectedCharacter.id) {
-        return { ...c, forbiddenWords: c.forbiddenWords.filter(w => w !== word) };
+  const handleToggleSelectShot = (id: string) => {
+    setSelectedShotIds(prev => {
+      const alreadySelected = prev.includes(id);
+      if (alreadySelected) {
+        if (prev.length === 1) return prev;
+        const next = prev.filter(x => x !== id);
+        if (selectedShotId === id && next.length > 0) {
+          setSelectedShotId(next[0]);
+        }
+        return next;
+      } else {
+        setSelectedShotId(id);
+        return [...prev, id];
       }
-      return c;
     });
-    setCharacters(updated);
   };
 
-  const handleAddShot = () => {
-    const newId = `shot-${Date.now()}`;
-    const newShot: SceneShot = {
-      id: newId,
-      title: `Nova Tomada ${shots.length + 1}`,
-      framing: 'Medium waist-up shot',
-      cameraAngle: 'Eye level, looking straight to lens',
-      lighting: 'Warm cinematic sunset light with natural contrast',
-      environment: 'Architectural outdoor terrace with clean background',
-      action: 'Natural confident posture, neutral expression',
-      aspectRatio: '9:16',
-    };
-    setShots([...shots, newShot]);
-    setSelectedShotId(newId);
-  };
-
-  const handleDeleteShot = (shotId: string) => {
-    if (shots.length <= 1) return;
-    const remaining = shots.filter(s => s.id !== shotId);
-    setShots(remaining);
-    setSelectedShotIds(prev => prev.filter(id => id !== shotId));
-    if (selectedShotId === shotId) {
-      setSelectedShotId(remaining[0].id);
+  const handleRangeSelectShot = (targetId: string) => {
+    const currentIndex = shots.findIndex(s => s.id === selectedShotId);
+    const targetIndex = shots.findIndex(s => s.id === targetId);
+    if (currentIndex === -1 || targetIndex === -1) {
+      handleSelectShot(targetId);
+      return;
     }
+    const start = Math.min(currentIndex, targetIndex);
+    const end = Math.max(currentIndex, targetIndex);
+    const rangeIds = shots.slice(start, end + 1).map(s => s.id);
+    setSelectedShotIds(Array.from(new Set([...selectedShotIds, ...rangeIds])));
+    setSelectedShotId(targetId);
   };
 
-  // Toggle selection for all shots with H shortcut (liga/desliga)
   const toggleSelectAll = () => {
-    if (selectedShotIds.length === shots.length) {
-      // Turn OFF -> deselect all
-      setSelectedShotIds([]);
+    if (selectedShotIds.length === shots.length && shots.length > 0) {
+      setSelectedShotIds([selectedShotId]);
     } else {
-      // Turn ON -> select all
       setSelectedShotIds(shots.map(s => s.id));
     }
   };
 
-  const handleSelectShot = (shotId: string) => {
-    setSelectedShotId(shotId);
-    setSelectedShotIds([shotId]);
+  // Add new shot
+  const handleAddShot = () => {
+    const newId = `shot-${Date.now()}`;
+    const newShot: SceneShot = {
+      id: newId,
+      title: `Scene ${shots.length + 1}`,
+      framing: 'Medium close-up, chest-up framing',
+      cameraAngle: 'three-quarter view facing camera',
+      cameraMovement: 'Cinematic Pan (Smooth lateral sweep)',
+      skillWorkflow: activeSkillFilter !== 'all' ? activeSkillFilter : 'film',
+      lighting: 'soft natural daylight with gentle rim light',
+      environment: 'outdoor terrace overlooking architectural landscape',
+      action: 'standing poised with natural confident expression',
+      aspectRatio: activeShot.aspectRatio || '16:9',
+    };
+    setShots(prev => [...prev, newShot]);
+    setSelectedShotId(newId);
+    setSelectedShotIds([newId]);
   };
 
-  const handleToggleSelectShot = (shotId: string) => {
-    if (selectedShotIds.includes(shotId)) {
-      setSelectedShotIds(selectedShotIds.filter(id => id !== shotId));
-    } else {
-      setSelectedShotIds([...selectedShotIds, shotId]);
-    }
-    setSelectedShotId(shotId);
-  };
-
-  const handleRangeSelectShot = (shotId: string) => {
-    const currentIndex = shots.findIndex(s => s.id === selectedShotId);
-    const targetIndex = shots.findIndex(s => s.id === shotId);
-    if (currentIndex !== -1 && targetIndex !== -1) {
-      const start = Math.min(currentIndex, targetIndex);
-      const end = Math.max(currentIndex, targetIndex);
-      const rangeIds = shots.slice(start, end + 1).map(s => s.id);
-      setSelectedShotIds(Array.from(new Set([...selectedShotIds, ...rangeIds])));
-      setSelectedShotId(shotId);
-      return;
-    }
-    handleToggleSelectShot(shotId);
-  };
-
-  const handleDeleteSelected = () => {
-    if (selectedShotIds.length === 0) return;
+  // Delete shot
+  const handleDeleteShot = (id: string) => {
     if (shots.length <= 1) return;
+    const remaining = shots.filter(s => s.id !== id);
+    setShots(remaining);
+    setSelectedShotIds(prev => prev.filter(x => x !== id));
+    if (selectedShotId === id) {
+      setSelectedShotId(remaining[0].id);
+      if (!selectedShotIds.includes(remaining[0].id)) {
+        setSelectedShotIds([remaining[0].id]);
+      }
+    }
+  };
+
+  // Delete multiple selected shots
+  const handleDeleteSelected = () => {
+    if (shots.length <= 1 || selectedShotIds.length === 0) return;
     const remaining = shots.filter(s => !selectedShotIds.includes(s.id));
     if (remaining.length === 0) {
-      const resetShot = [{ ...shots[0], title: 'Cena 1', mediaUrl: undefined, mediaType: undefined }];
-      setShots(resetShot);
-      setSelectedShotId(resetShot[0].id);
-      setSelectedShotIds([resetShot[0].id]);
-      return;
+      const fallback = shots.find(s => !selectedShotIds.includes(s.id)) || shots[0];
+      setShots([fallback]);
+      setSelectedShotId(fallback.id);
+      setSelectedShotIds([fallback.id]);
+    } else {
+      setShots(remaining);
+      setSelectedShotId(remaining[0].id);
+      setSelectedShotIds([remaining[0].id]);
     }
-    setShots(remaining);
-    setSelectedShotId(remaining[0].id);
-    setSelectedShotIds([remaining[0].id]);
   };
 
-  // Upload handler for user generated videos/images from Google Flow
+  // Media upload handlers
   const handleUploadMedia = (shotId: string, file: File) => {
-    const isVideo = file.type.startsWith('video');
-    const url = URL.createObjectURL(file);
-    const updated = shots.map(s => {
-      if (s.id === shotId) {
-        return {
-          ...s,
-          mediaUrl: url,
-          mediaType: isVideo ? ('video' as const) : ('image' as const)
-        };
-      }
-      return s;
-    });
-    setShots(updated);
+    const objectUrl = URL.createObjectURL(file);
+    const mediaType = file.type.startsWith('video') ? 'video' : 'image';
+    setShots(prev => prev.map(s => s.id === shotId ? { ...s, mediaUrl: objectUrl, mediaType } : s));
   };
 
   const handleRemoveMedia = (shotId: string) => {
-    const updated = shots.map(s => {
-      if (s.id === shotId) {
-        return { ...s, mediaUrl: undefined, mediaType: undefined };
-      }
-      return s;
-    });
-    setShots(updated);
+    setShots(prev => prev.map(s => s.id === shotId ? { ...s, mediaUrl: undefined, mediaType: undefined } : s));
   };
 
-  // Upload handler for custom scene voiceover/audio track (ElevenLabs/Kokoro)
   const handleUploadAudio = (shotId: string, file: File) => {
-    const url = URL.createObjectURL(file);
-    const updated = shots.map(s => {
-      if (s.id === shotId) {
-        return {
-          ...s,
-          audioUrl: url,
-          audioName: file.name
-        };
-      }
-      return s;
-    });
-    setShots(updated);
+    const objectUrl = URL.createObjectURL(file);
+    setShots(prev => prev.map(s => s.id === shotId ? { ...s, audioUrl: objectUrl, audioName: file.name } : s));
   };
 
   const handleRemoveAudio = (shotId: string) => {
-    const updated = shots.map(s => {
-      if (s.id === shotId) {
-        return { ...s, audioUrl: undefined, audioName: undefined };
-      }
-      return s;
-    });
-    setShots(updated);
+    setShots(prev => prev.map(s => s.id === shotId ? { ...s, audioUrl: undefined, audioName: undefined } : s));
   };
 
-  // Export Flow Prompts as Sequenced Text Document
-  const handleExportFlowPrompts = () => {
-    const compiledMap: Record<string, string> = {};
-    shots.forEach(s => {
-      const res = compileScenePrompt(selectedCharacter, s);
-      compiledMap[s.id] = res.finalPrompt;
-    });
-    exportFlowPromptsText(selectedCharacter, shots, compiledMap);
-  };
-
-  // Import Project JSON
+  // Project Import/Export
   const handleImportProject = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const text = event.target?.result as string;
-        const parsed = parseProjectJson(text);
+        const parsed = parseProjectJson(event.target?.result as string);
+        if (parsed.shots && parsed.shots.length > 0) {
+          setShots(parsed.shots);
+          setSelectedShotId(parsed.shots[0].id);
+          setSelectedShotIds([parsed.shots[0].id]);
+        }
         if (parsed.character) {
           setCharacters(prev => {
             const exists = prev.some(c => c.id === parsed.character!.id);
@@ -436,69 +571,95 @@ export default function App() {
           });
           setSelectedCharId(parsed.character.id);
         }
-        if (parsed.shots && parsed.shots.length > 0) {
-          setShots(parsed.shots);
-          setSelectedShotId(parsed.shots[0].id);
-          setSelectedShotIds([parsed.shots[0].id]);
-        }
       } catch (err: any) {
-        alert(err.message || 'Erro ao carregar projeto');
+        alert(`Error importing project: ${err.message}`);
       }
     };
     reader.readAsText(file);
-    e.target.value = '';
   };
 
-  const handleExportCharacter = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(selectedCharacter, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `${selectedCharacter.id}_character_card.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+  const handleExportFlowPrompts = () => {
+    const compiledMap: Record<string, string> = {};
+    shots.forEach(s => {
+      compiledMap[s.id] = compileScenePrompt(selectedCharacter, s).finalPrompt;
+    });
+    exportFlowPromptsText(selectedCharacter, shots, compiledMap);
   };
+
+  // Add/remove forbidden words
+  const handleAddForbidden = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && newForbiddenTag.trim()) {
+      e.preventDefault();
+      const tag = newForbiddenTag.trim().toLowerCase();
+      if (!selectedCharacter.forbiddenWords.includes(tag)) {
+        const updated = characters.map(c => c.id === selectedCharacter.id ? { ...c, forbiddenWords: [...c.forbiddenWords, tag] } : c);
+        setCharacters(updated);
+      }
+      setNewForbiddenTag('');
+    }
+  };
+
+  const handleRemoveForbidden = (tag: string) => {
+    const updated = characters.map(c => c.id === selectedCharacter.id ? { ...c, forbiddenWords: c.forbiddenWords.filter(w => w !== tag) } : c);
+    setCharacters(updated);
+  };
+
+  // Character Editor Save
+  const handleSaveCharacter = () => {
+    setCharacters(prev => prev.map(c => c.id === editingCharacter.id ? editingCharacter : c));
+    setIsCharacterEditorOpen(false);
+  };
+
+  // Filtered shots for display
+  const displayedShots = useMemo(() => {
+    if (activeSkillFilter === 'all') return shots;
+    return shots.filter(s => s.skillWorkflow === activeSkillFilter);
+  }, [shots, activeSkillFilter]);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden select-none">
-      {/* Top Navbar */}
-      <header className="h-14 border-b border-zinc-800/80 bg-zinc-900/95 px-5 flex items-center justify-between shrink-0 z-30">
+    <div className="flex flex-col h-screen w-screen bg-zinc-950 text-zinc-100 select-none overflow-hidden font-sans">
+      {/* Top Header Bar */}
+      <header className="h-14 border-b border-zinc-800 bg-zinc-950/90 px-5 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <Sparkles className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-black text-black text-sm shadow-lg shadow-emerald-500/20">
+            A
           </div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-bold text-white tracking-tight">Character & Buzzy Studio</h1>
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              AGY Ativo
-            </span>
+          <div>
+            <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+              Antigravity Studio
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/20">
+                Buzzy + Character.ai Engine
+              </span>
+            </h1>
+            <p className="text-[11px] text-zinc-400 hidden sm:block">
+              Zero-Hardware Cloud Consistency for Google Flow
+            </p>
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center bg-zinc-950/80 rounded-lg p-0.5 border border-zinc-800">
+        {/* Studio Navigation Tabs */}
+        <div className="flex bg-zinc-900/90 p-1 rounded-xl border border-zinc-800">
           <button
             onClick={() => setActiveTab('character')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 ${
               activeTab === 'character'
-                ? 'bg-zinc-800 text-white shadow'
-                : 'text-zinc-400 hover:text-zinc-200'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <User className="w-3.5 h-3.5 text-emerald-400" />
-            Character Lab
+            <User className="w-3.5 h-3.5" />
+            Character Lab (Character.ai)
           </button>
           <button
             onClick={() => setActiveTab('canvas')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 ${
               activeTab === 'canvas'
-                ? 'bg-zinc-800 text-white shadow'
-                : 'text-zinc-400 hover:text-zinc-200'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <Film className="w-3.5 h-3.5 text-emerald-400" />
-            Buzzy Canvas
+            <Film className="w-3.5 h-3.5" />
+            Buzzy Canvas & Storyboard
           </button>
         </div>
 
@@ -510,22 +671,31 @@ export default function App() {
             </div>
             <select
               value={selectedCharId}
-              onChange={(e) => {
-                setSelectedCharId(e.target.value);
-              }}
+              onChange={(e) => setSelectedCharId(e.target.value)}
               className="bg-transparent text-xs font-semibold text-zinc-100 focus:outline-none cursor-pointer pr-1"
             >
               {characters.map(char => (
                 <option key={char.id} value={char.id} className="bg-zinc-900 text-white">
-                  {char.name} ({char.gender === 'f' ? 'Feminino' : 'Masculino'})
+                  {char.name} ({char.gender === 'f' ? 'Female' : 'Male'})
                 </option>
               ))}
             </select>
           </div>
 
           <button
-            onClick={handleExportCharacter}
-            title="Exportar Character Card JSON"
+            onClick={() => {
+              setEditingCharacter({ ...selectedCharacter });
+              setIsCharacterEditorOpen(true);
+            }}
+            title="Edit Persona Parameters"
+            className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 rounded-lg text-zinc-300 hover:text-white transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => exportProjectJson(selectedCharacter, shots)}
+            title="Export Project JSON"
             className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 rounded-lg text-zinc-300 transition-colors"
           >
             <Download className="w-4 h-4" />
@@ -544,9 +714,9 @@ export default function App() {
                 <div>
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <User className="w-4 h-4 text-emerald-400" />
-                    Ficha de Consistência — {selectedCharacter.name}
+                    Consistency Sheet — {selectedCharacter.name}
                   </h2>
-                  <p className="text-xs text-zinc-400">Regras imutáveis que forçam o Google Flow a manter o mesmo rosto.</p>
+                  <p className="text-xs text-zinc-400">Fixed identity parameters forcing Google Flow to maintain strict facial consistency.</p>
                 </div>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-400">
                   id: {selectedCharacter.id}
@@ -557,7 +727,7 @@ export default function App() {
               <div className="space-y-1">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  Âncora de Rosto (howToCite) — Em Inglês
+                  Face Consistency Anchor (howToCite) — English
                 </label>
                 <input
                   type="text"
@@ -573,7 +743,7 @@ export default function App() {
               {/* Identity Block */}
               <div className="space-y-1">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Acessórios e Traços Fixos de Identidade
+                  Fixed Identity & Mandatory Accessories Block
                 </label>
                 <textarea
                   rows={2}
@@ -589,7 +759,7 @@ export default function App() {
               {/* Fixed Traits Grid */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Traços Físicos Congelados
+                  Frozen Physical Traits
                 </label>
                 <div className="grid grid-cols-2 gap-2.5 bg-zinc-900/50 p-3.5 rounded-xl border border-zinc-800/80">
                   {Object.entries(selectedCharacter.fixedTraits).map(([key, val]) => (
@@ -606,7 +776,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-                    Calibração de Voz (Character.ai)
+                    Voice Calibration (Character.ai Neural Synthesis)
                   </label>
                   {isSpeaking && (
                     <div className="flex items-center gap-1 h-3 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-800/50">
@@ -614,7 +784,7 @@ export default function App() {
                       <span className="w-1 h-2 bg-emerald-400 animate-pulse delay-75" />
                       <span className="w-1 h-3.5 bg-emerald-400 animate-pulse delay-150" />
                       <span className="w-1 h-2.5 bg-emerald-400 animate-pulse delay-100" />
-                      <span className="text-[10px] font-mono text-emerald-400 ml-1">Falando...</span>
+                      <span className="text-[10px] font-mono text-emerald-400 ml-1">Speaking...</span>
                     </div>
                   )}
                 </div>
@@ -622,10 +792,10 @@ export default function App() {
                 {/* Voice Presets */}
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { name: 'Feminina Natural', pitch: 1.15, rate: 1.05 },
-                    { name: 'Masculina Grave', pitch: 0.85, rate: 0.95 },
-                    { name: 'Narrador Cinema', pitch: 0.9, rate: 0.9 },
-                    { name: 'Enérgica / Anime', pitch: 1.3, rate: 1.15 },
+                    { name: 'Natural Female', pitch: 1.15, rate: 1.05 },
+                    { name: 'Deep Male', pitch: 0.85, rate: 0.95 },
+                    { name: 'Cinema Narrator', pitch: 0.9, rate: 0.9 },
+                    { name: 'Energetic / Anime', pitch: 1.3, rate: 1.15 },
                   ].map(preset => (
                     <button
                       key={preset.name}
@@ -645,19 +815,19 @@ export default function App() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => handleSpeak(`Olá, sou ${selectedCharacter.name}! Estou pronta para planejar as tomadas da nossa cena.`)}
+                    onClick={() => handleSpeak(`Hello! I am ${selectedCharacter.name}. Ready to shoot our next scene.`)}
                     className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 flex items-center gap-1 font-semibold ml-auto"
                   >
                     <Volume2 className="w-3 h-3" />
-                    Testar Voz
+                    Test Voice
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex justify-between text-[11px] text-zinc-400 mb-1">
-                      <span>Tom (Pitch):</span>
-                      <span className="font-mono text-emerald-400">{voicePitch.toFixed(1)}</span>
+                      <span>Pitch:</span>
+                      <span className="font-mono text-emerald-400">{voicePitch.toFixed(2)}</span>
                     </div>
                     <input 
                       type="range" 
@@ -671,8 +841,8 @@ export default function App() {
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] text-zinc-400 mb-1">
-                      <span>Velocidade (Rate):</span>
-                      <span className="font-mono text-emerald-400">{voiceRate.toFixed(1)}</span>
+                      <span>Speed Rate:</span>
+                      <span className="font-mono text-emerald-400">{voiceRate.toFixed(2)}</span>
                     </div>
                     <input 
                       type="range" 
@@ -690,8 +860,8 @@ export default function App() {
               {/* Forbidden Words Badges */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
-                  <span>Traços Proibidos ({selectedCharacter.forbiddenWords.length})</span>
-                  <span className="text-[11px] text-zinc-500 lowercase font-normal">Digite e aperte Enter</span>
+                  <span>Forbidden Terms ({selectedCharacter.forbiddenWords.length})</span>
+                  <span className="text-[11px] text-zinc-500 lowercase font-normal">Type and press Enter</span>
                 </label>
                 <div className="flex flex-wrap gap-1.5 p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl min-h-[70px]">
                   {selectedCharacter.forbiddenWords.map(word => (
@@ -711,7 +881,7 @@ export default function App() {
                   ))}
                   <input
                     type="text"
-                    placeholder="Adicionar traço proibido..."
+                    placeholder="Add forbidden word..."
                     value={newForbiddenTag}
                     onChange={(e) => setNewForbiddenTag(e.target.value)}
                     onKeyDown={handleAddForbidden}
@@ -723,7 +893,7 @@ export default function App() {
               {/* Required Standard References */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Fotos de Referência Mestre Obrigatórias
+                  Mandatory Master Reference Images
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {selectedCharacter.standardReferences.map(ref => (
@@ -736,7 +906,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right: Character.ai Chat Simulator with Persistent Memory */}
+            {/* Right: Character.ai Chat Simulator with Persistent Memory & Swiping */}
             <div className="w-[42%] flex flex-col bg-zinc-950/80">
               <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
@@ -748,14 +918,20 @@ export default function App() {
                       {selectedCharacter.name}
                       <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     </h3>
-                    <p className="text-[11px] text-zinc-400 line-clamp-1">{selectedCharacter.personality}</p>
+                    <p className="text-[11px] text-zinc-400 line-clamp-1">{selectedCharacter.tagline || selectedCharacter.personality}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => updateChat([{ sender: 'char', text: selectedCharacter.greeting || 'Olá!' }])}
-                    title="Limpar Histórico Salvo"
+                    onClick={() => updateChat([{
+                      id: `msg-${Date.now()}`,
+                      sender: 'char',
+                      text: selectedCharacter.greeting || 'Hello!',
+                      alternatives: [selectedCharacter.greeting || 'Hello!'],
+                      activeAltIndex: 0,
+                    }])}
+                    title="Clear Conversation History"
                     className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -763,31 +939,77 @@ export default function App() {
                   <button
                     onClick={() => handleSpeak(chatMessages[chatMessages.length - 1]?.text || '')}
                     className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white"
-                    title="Ouvir voz"
+                    title="Speak Latest Message"
                   >
                     {isSpeaking ? <VolumeX className="w-3.5 h-3.5 text-emerald-400" /> : <Volume2 className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Chat Stream */}
+              {/* Chat Stream with Character.ai Roleplay formatting and Swiping */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-                {chatMessages.map((msg, i) => (
+                {chatMessages.map((msg) => (
                   <div
-                    key={i}
-                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                    key={msg.id}
+                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} group`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                      className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                         msg.sender === 'user'
                           ? 'bg-emerald-600 text-white rounded-br-none shadow-sm'
                           : 'bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-bl-none shadow-sm'
                       }`}
                     >
-                      {msg.text}
+                      {msg.sender === 'char' ? (
+                        <FormattedDialogueText text={msg.text} />
+                      ) : (
+                        msg.text
+                      )}
                     </div>
+
+                    {/* Character.ai Controls: Alternative Swiper & Add to Scene Canvas */}
+                    {msg.sender === 'char' && msg.text && (
+                      <div className="flex items-center gap-2 mt-1 px-1">
+                        {/* Swiper controls */}
+                        {msg.alternatives && msg.alternatives.length > 1 && (
+                          <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-[10px] text-zinc-400">
+                            <button
+                              type="button"
+                              onClick={() => handleSwipeAlternative(msg.id, 'prev')}
+                              className="hover:text-emerald-400"
+                              title="Previous Alternative Reply"
+                            >
+                              <ChevronLeft className="w-3 h-3" />
+                            </button>
+                            <span className="font-mono text-zinc-300">
+                              {(msg.activeAltIndex || 0) + 1} / {msg.alternatives.length}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSwipeAlternative(msg.id, 'next')}
+                              className="hover:text-emerald-400"
+                              title="Next Alternative Reply"
+                            >
+                              <ChevronRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Add to Storyboard Scene Card */}
+                        <button
+                          type="button"
+                          onClick={() => handleAddShotFromDialogue(msg.text)}
+                          className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded transition-all shadow-sm"
+                          title="Generate a 2D storyboard scene card using this dialogue and action"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Create Scene Shot
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
+
                 {streamingText !== null && (
                   <div className="flex flex-col items-start animate-in fade-in duration-100">
                     <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-zinc-900 text-zinc-100 border border-emerald-500/40 rounded-bl-none shadow-sm">
@@ -796,11 +1018,12 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
                 {isThinking && (
                   <div className="flex flex-col items-start">
                     <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl px-3 py-1.5 text-[11px] text-emerald-400 flex items-center gap-2 animate-pulse">
                       <Sparkles className="w-3 h-3 animate-spin" />
-                      {selectedCharacter.name} está pensando via AGY...
+                      {selectedCharacter.name} is thinking...
                     </div>
                   </div>
                 )}
@@ -811,17 +1034,17 @@ export default function App() {
               <div className="px-4 py-2 border-t border-zinc-800/80 bg-zinc-900/30 flex gap-1.5 overflow-x-auto shrink-0">
                 <button
                   type="button"
-                  onClick={() => setChatInput('Qual luz fica melhor na próxima cena?')}
+                  onClick={() => setChatInput('Which lighting angle works best for our next shot?')}
                   className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 whitespace-nowrap border border-zinc-700/50"
                 >
-                  💡 Sugestão de iluminação
+                  💡 Lighting advice
                 </button>
                 <button
                   type="button"
-                  onClick={() => setChatInput('Como compor o look e acessórios para manter consistência?')}
+                  onClick={() => setChatInput('How do we compose the action to maintain consistency?')}
                   className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 whitespace-nowrap border border-zinc-700/50"
                 >
-                  👗 Regras do look
+                  👗 Action & wardrobe rules
                 </button>
               </div>
 
@@ -829,14 +1052,14 @@ export default function App() {
               <form onSubmit={handleSendMessage} className="p-3 border-t border-zinc-800 flex gap-2 shrink-0">
                 <input
                   type="text"
-                  placeholder={`Converse com ${selectedCharacter.name}...`}
+                  placeholder={`Chat with ${selectedCharacter.name}...`}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 placeholder:text-zinc-600"
                 />
                 <button
                   type="submit"
-                  disabled={isThinking}
+                  disabled={isThinking || isStreaming}
                   className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs rounded-xl flex items-center justify-center transition-all shadow-md shadow-emerald-600/20"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -845,142 +1068,173 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* ================= BUZZY CANVAS TAB (Buzzy.now with 2D Nodes & Flow Upload) ================= */
+          /* ================= BUZZY CANVAS TAB (Buzzy.now with 2D Nodes & Skills Engine) ================= */
           <div className="flex-1 flex overflow-hidden">
             {/* Left/Center Workspace: 2D Canvas OR Director Controls */}
             <div className="flex-1 flex flex-col overflow-hidden border-r border-zinc-800/80">
-              {/* Canvas Sub-Header Controls */}
-              <div className="h-10 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                    Modo de Edição:
-                  </span>
-                  <div className="flex bg-zinc-950 p-0.5 rounded border border-zinc-800">
+              {/* Canvas Sub-Header: Buzzy Skills Workflow Bar */}
+              <div className="h-11 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  {/* View Mode Toggle */}
+                  <div className="flex bg-zinc-950 p-0.5 rounded-lg border border-zinc-800">
                     <button
                       onClick={() => setCanvasViewMode('graph')}
-                      className={`px-2.5 py-0.5 text-xs font-medium rounded flex items-center gap-1 ${
-                        canvasViewMode === 'graph' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all ${
+                        canvasViewMode === 'graph' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       <Network className="w-3 h-3 text-emerald-400" />
-                      Canvas 2D de Nós (Buzzy)
+                      2D Canvas (Buzzy)
                     </button>
                     <button
                       onClick={() => setCanvasViewMode('director')}
-                      className={`px-2.5 py-0.5 text-xs font-medium rounded flex items-center gap-1 ${
-                        canvasViewMode === 'director' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all ${
+                        canvasViewMode === 'director' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       <Camera className="w-3 h-3 text-emerald-400" />
-                      Diretor de Parâmetros
+                      Director Studio
                     </button>
+                  </div>
+
+                  {/* Buzzy Workflow Skills Tabs */}
+                  <div className="hidden lg:flex items-center gap-1 bg-zinc-950/80 p-0.5 rounded-lg border border-zinc-800">
+                    <button
+                      onClick={() => setActiveSkillFilter('all')}
+                      className={`px-2 py-0.5 text-[11px] font-medium rounded ${
+                        activeSkillFilter === 'all' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      All Skills
+                    </button>
+                    {buzzySkillsList.slice(0, 3).map(skill => (
+                      <button
+                        key={skill.id}
+                        onClick={() => setActiveSkillFilter(skill.id)}
+                        className={`px-2 py-0.5 text-[11px] font-medium rounded flex items-center gap-1 ${
+                          activeSkillFilter === skill.id ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'
+                        }`}
+                        title={skill.desc}
+                      >
+                        <span>{skill.icon}</span>
+                        {skill.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Dica Ctrl p/ seleção múltipla */}
-                  <span className="text-[11px] text-zinc-500 font-medium hidden md:inline">
-                    <kbd className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-300 font-mono text-[10px]">Ctrl</kbd> + clique para múltiplos
+                  {/* Buzzy Pre-built Storyboard Templates Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsTemplateMenuOpen(prev => !prev)}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-zinc-900 border border-zinc-700 hover:border-emerald-500/50 text-emerald-400 flex items-center gap-1.5 transition-all"
+                      title="Load pre-built multi-scene workflows from Buzzy Skills"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>Buzzy Templates</span>
+                    </button>
+
+                    {isTemplateMenuOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-72 rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl p-2 z-50">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2 py-1">
+                          Select Buzzy Skill Workflow
+                        </div>
+                        {buzzyWorkflowTemplates.map(tmpl => (
+                          <button
+                            key={tmpl.id}
+                            type="button"
+                            onClick={() => handleLoadBuzzyTemplate(tmpl)}
+                            className="w-full text-left p-2 rounded-lg hover:bg-zinc-800/80 transition-colors group"
+                          >
+                            <div className="text-xs font-bold text-white group-hover:text-emerald-400 flex items-center justify-between">
+                              {tmpl.name}
+                              <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400">
+                                {tmpl.shots.length} shots
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-zinc-400 mt-0.5 line-clamp-2">
+                              {tmpl.description}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Keyboard shortcut hint */}
+                  <span className="text-[11px] text-zinc-500 font-medium hidden xl:inline">
+                    <kbd className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-300 font-mono text-[10px]">Ctrl</kbd> + click for multi
                   </span>
 
-                  {/* Atalho H: Selecionar Tudo (Liga/Desliga) */}
+                  {/* Select All Toggle [H] */}
                   <button
                     onClick={toggleSelectAll}
-                    title="Pressione 'H' para selecionar ou desmarcar todas as cenas. Segure Ctrl e clique nos cards para multi-seleção."
-                    className={`px-2.5 py-1 text-xs font-semibold rounded border transition-all flex items-center gap-1.5 ${
+                    title="Press 'H' to toggle selection on all scenes. Hold Ctrl and click cards for multi-selection."
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
                       selectedShotIds.length === shots.length && shots.length > 0
                         ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                         : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:text-white hover:bg-zinc-800'
                     }`}
                   >
                     <CheckCircle2 className={`w-3.5 h-3.5 ${selectedShotIds.length === shots.length && shots.length > 0 ? 'text-white' : 'text-emerald-400'}`} />
-                    {selectedShotIds.length === shots.length && shots.length > 0 ? 'Desmarcar Tudo [H]' : 'Selecionar Tudo [H]'}
+                    {selectedShotIds.length === shots.length && shots.length > 0 ? 'Deselect All [H]' : 'Select All [H]'}
                   </button>
 
-                  {/* Quick Select Dropdown */}
-                  <div className="flex items-center gap-1 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
-                    <select
-                      value={selectedShotId}
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        setSelectedShotId(id);
-                        setSelectedShotIds([id]);
-                      }}
-                      className="bg-transparent text-xs font-semibold text-emerald-400 focus:outline-none cursor-pointer pr-1"
-                    >
-                      {shots.map((s, idx) => (
-                        <option key={s.id} value={s.id} className="bg-zinc-900 text-white">
-                          #{idx + 1} — {s.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Delete Selected (Apagar Marcadas) */}
+                  {/* Delete Selected */}
                   {shots.length > 1 && (
                     <button
                       onClick={handleDeleteSelected}
                       disabled={selectedShotIds.length === 0}
-                      title={selectedShotIds.length > 0 ? `Apagar ${selectedShotIds.length} cena(s) marcada(s)` : 'Nenhuma cena marcada para apagar'}
-                      className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
+                      title={selectedShotIds.length > 0 ? `Delete ${selectedShotIds.length} selected scene(s)` : 'No scene selected'}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors ${
                         selectedShotIds.length > 0
                           ? 'bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-900/50 cursor-pointer'
                           : 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed opacity-60'
                       }`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      Apagar ({selectedShotIds.length})
+                      Delete ({selectedShotIds.length})
                     </button>
                   )}
 
                   <button
                     onClick={handleAddShot}
-                    className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded border border-emerald-500/30 text-xs font-semibold flex items-center gap-1"
+                    className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-lg border border-emerald-500/30 text-xs font-semibold flex items-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Nova Cena
+                    New Shot
                   </button>
 
                   <div className="h-4 w-px bg-zinc-800 mx-0.5" />
 
-                  {/* Timeline Sequencer (Buzzy.now continuous movie player) */}
+                  {/* Timeline Sequencer (Buzzy continuous movie player) */}
                   <button
                     onClick={() => setIsTimelineOpen(true)}
-                    title="Reproduzir todas as cenas em sequência de vídeo contínua (Timeline Sequencer)"
-                    className="px-2.5 py-1 text-xs font-semibold rounded border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm"
+                    title="Continuous Movie Sequence Player (Buzzy Timeline Player)"
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm"
                   >
                     <Film className="w-3.5 h-3.5" />
-                    Modo Filme
+                    Play Movie
                   </button>
 
-                  {/* Export Project JSON */}
-                  <button
-                    onClick={() => exportProjectJson(selectedCharacter, shots)}
-                    title="Exportar Storyboard completo em formato JSON"
-                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded text-xs flex items-center gap-1 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden xl:inline text-[11px]">Salvar JSON</span>
-                  </button>
-
-                  {/* Export Flow Prompts TXT */}
+                  {/* Flow Prompts TXT Export */}
                   <button
                     onClick={handleExportFlowPrompts}
-                    title="Exportar lista de prompts sequenciados para o Google Flow (TXT)"
-                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded text-xs flex items-center gap-1 transition-colors"
+                    title="Export Sequenced Prompts for Google Flow (TXT)"
+                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded-lg text-xs flex items-center gap-1 transition-colors"
                   >
                     <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden xl:inline text-[11px]">Prompts Flow</span>
+                    <span className="hidden xl:inline text-[11px]">Flow Prompts</span>
                   </button>
 
                   {/* Import Project JSON */}
                   <label 
-                    title="Carregar projeto JSON salvo"
-                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Import Saved Project JSON"
+                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden xl:inline text-[11px]">Carregar</span>
+                    <span className="hidden xl:inline text-[11px]">Load</span>
                     <input
                       type="file"
                       accept=".json,application/json"
@@ -996,7 +1250,7 @@ export default function App() {
                 {canvasViewMode === 'graph' ? (
                   /* 2D Interactive React Flow Canvas */
                   <SceneCanvas
-                    shots={shots}
+                    shots={displayedShots}
                     selectedShotId={selectedShotId}
                     selectedShotIds={selectedShotIds}
                     onSelectShot={handleSelectShot}
@@ -1012,12 +1266,12 @@ export default function App() {
                       <div>
                         <h3 className="text-sm font-bold text-white flex items-center gap-2">
                           <Camera className="w-4 h-4 text-emerald-400" />
-                          Direção da Tomada — {activeShot.title}
+                          Director Shot Calibration — {activeShot.title}
                         </h3>
-                        <p className="text-xs text-zinc-400">Ajuste os parâmetros visuais para alimentar o Google Flow.</p>
+                        <p className="text-xs text-zinc-400">Configure framing, camera motion, and dialogue for Google Flow.</p>
                       </div>
 
-                      {/* Aspect Ratio Selector & Delete */}
+                      {/* Aspect Ratio Selector */}
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
                           {(['2:3', '9:16', '16:9', '1:1'] as const).map(ratio => (
@@ -1042,7 +1296,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => handleDeleteShot(activeShot.id)}
-                            title="Excluir Tomada Atual"
+                            title="Delete Current Shot"
                             className="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-red-400 rounded-lg border border-zinc-800 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1051,24 +1305,81 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Title Input */}
+                    {/* Title & Buzzy Skill Workflow Row */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Scene Title</label>
+                        <input
+                          type="text"
+                          value={activeShot.title}
+                          onChange={(e) => {
+                            const updated = shots.map(s => s.id === activeShot.id ? { ...s, title: e.target.value } : s);
+                            setShots(updated);
+                          }}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Buzzy Skill Workflow</label>
+                        <select
+                          value={activeShot.skillWorkflow || 'film'}
+                          onChange={(e) => {
+                            const updated = shots.map(s => s.id === activeShot.id ? { ...s, skillWorkflow: e.target.value as SkillWorkflowType } : s);
+                            setShots(updated);
+                          }}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                        >
+                          <option value="film">🎬 AI Film (Cinematic Narrative)</option>
+                          <option value="ads">📢 AI Ads (Viral Commercial)</option>
+                          <option value="animation">✨ AI Animation (Anime Dynamics)</option>
+                          <option value="custom">⚙️ Custom Manual Workflow</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Camera Movement (Buzzy Motion Control) */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Título da Cena</label>
-                      <input
-                        type="text"
-                        value={activeShot.title}
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+                        <span>Camera Movement (Buzzy Motion Engine)</span>
+                        <span className="text-[10px] text-cyan-400 font-mono">Injected into Flow prompt</span>
+                      </label>
+                      <select
+                        value={activeShot.cameraMovement || 'Static / None'}
                         onChange={(e) => {
-                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, title: e.target.value } : s);
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, cameraMovement: e.target.value } : s);
                           setShots(updated);
                         }}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-cyan-300 focus:outline-none focus:border-cyan-500 font-mono cursor-pointer"
+                      >
+                        {buzzyCameraMovements.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Spoken Dialogue Line (Character.ai Integration) */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+                        <span>Spoken Dialogue Line (Character.ai)</span>
+                        <span className="text-[10px] text-emerald-400 font-mono">Natural lip sync cue</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. We have to capture this light before the sun dips."
+                        value={activeShot.dialogueLine || ''}
+                        onChange={(e) => {
+                          const updated = shots.map(s => s.id === activeShot.id ? { ...s, dialogueLine: e.target.value } : s);
+                          setShots(updated);
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-emerald-300 italic focus:outline-none focus:border-emerald-500"
                       />
                     </div>
 
                     {/* Framing */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Enquadramento (Framing)</label>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Framing</label>
                         <div className="flex gap-1 text-[10px]">
                           <button
                             type="button"
@@ -1078,7 +1389,7 @@ export default function App() {
                             }}
                             className="text-zinc-400 hover:text-emerald-400"
                           >
-                            [Plano Médio]
+                            [Medium Close-up]
                           </button>
                           <button
                             type="button"
@@ -1098,7 +1409,7 @@ export default function App() {
                             }}
                             className="text-zinc-400 hover:text-emerald-400"
                           >
-                            [Corpo Inteiro]
+                            [Full Body]
                           </button>
                         </div>
                       </div>
@@ -1115,7 +1426,7 @@ export default function App() {
 
                     {/* Camera Angle */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Ângulo da Câmera</label>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Camera Angle</label>
                       <input
                         type="text"
                         value={activeShot.cameraAngle}
@@ -1129,7 +1440,7 @@ export default function App() {
 
                     {/* Lighting */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Iluminação e Contraste</label>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Lighting & Contrast</label>
                       <input
                         type="text"
                         value={activeShot.lighting}
@@ -1143,7 +1454,7 @@ export default function App() {
 
                     {/* Environment */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Cenário / Ambiente</label>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Environment & Backdrop</label>
                       <textarea
                         rows={2}
                         value={activeShot.environment}
@@ -1157,7 +1468,7 @@ export default function App() {
 
                     {/* Action */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Vestimenta & Ação</label>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Wardrobe & Action</label>
                       <textarea
                         rows={2}
                         value={activeShot.action}
@@ -1178,19 +1489,19 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" />
-                  Pronto para o Google Flow
+                  Ready for Google Flow
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono border border-emerald-500/20">
-                  Consistente
+                  Consistent
                 </span>
               </div>
 
-              {/* Uploaded Video/Image Display Section (User generated in Google Flow) */}
+              {/* Uploaded Video/Image Display Section */}
               <div className="space-y-2 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                     <Video className="w-3.5 h-3.5 text-emerald-400" />
-                    Mídia Gerada no Google Flow
+                    Google Flow Generated Media
                   </label>
                   {activeShot.mediaUrl && (
                     <button
@@ -1199,7 +1510,7 @@ export default function App() {
                       className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-0.5"
                     >
                       <Trash2 className="w-3 h-3" />
-                      Remover
+                      Remove
                     </button>
                   )}
                 </div>
@@ -1226,9 +1537,9 @@ export default function App() {
                   <label className="w-full h-24 border-2 border-dashed border-zinc-800 hover:border-emerald-500/50 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all bg-zinc-950/40 p-2 text-center group">
                     <Upload className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 mb-1" />
                     <span className="text-[11px] text-zinc-400 group-hover:text-zinc-200 font-medium">
-                      Clique para enviar o vídeo/imagem gerado no Flow
+                      Upload video or image generated in Flow
                     </span>
-                    <span className="text-[10px] text-zinc-600">MP4, WebM, PNG ou JPG</span>
+                    <span className="text-[10px] text-zinc-600">MP4, WebM, PNG or JPG</span>
                     <input 
                       type="file" 
                       accept="video/*,image/*" 
@@ -1243,12 +1554,12 @@ export default function App() {
                 )}
               </div>
 
-              {/* Uploaded Audio Track Section (ElevenLabs/Kokoro/Neural voice) */}
+              {/* Uploaded Audio Track Section */}
               <div className="space-y-2 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                     <Music className="w-3.5 h-3.5 text-emerald-400" />
-                    Locução / Áudio da Cena
+                    Scene Voiceover Audio Track
                   </label>
                   {activeShot.audioUrl && (
                     <button
@@ -1257,7 +1568,7 @@ export default function App() {
                       className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-0.5"
                     >
                       <Trash2 className="w-3 h-3" />
-                      Remover
+                      Remove
                     </button>
                   )}
                 </div>
@@ -1267,7 +1578,7 @@ export default function App() {
                     <div className="flex items-center gap-2 truncate">
                       <Volume2 className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span className="text-xs font-mono text-zinc-300 truncate">
-                        {activeShot.audioName || 'audio_locucao.mp3'}
+                        {activeShot.audioName || 'voiceover.mp3'}
                       </span>
                     </div>
                     <audio src={activeShot.audioUrl} controls className="h-7 max-w-[140px]" />
@@ -1275,10 +1586,10 @@ export default function App() {
                 ) : (
                   <label className="w-full h-16 border-2 border-dashed border-zinc-800 hover:border-emerald-500/50 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all bg-zinc-950/40 p-2 text-center group">
                     <span className="text-[10px] font-medium text-emerald-400 group-hover:underline flex items-center gap-1">
-                      <Upload className="w-3 h-3" /> Anexar áudio MP3/WAV (ElevenLabs / Kokoro)
+                      <Upload className="w-3 h-3" /> Attach MP3/WAV Audio (ElevenLabs / Kokoro)
                     </span>
                     <span className="text-[9px] text-zinc-500 mt-0.5">
-                      Sincronizado automaticamente no Modo Filme
+                      Automatically synced in Movie Mode
                     </span>
                     <input
                       type="file"
@@ -1299,7 +1610,7 @@ export default function App() {
                 <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/60 space-y-1">
                   <div className="flex items-center gap-1.5 text-amber-300 text-[11px] font-bold">
                     <ShieldAlert className="w-3.5 h-3.5" />
-                    Proteção de Identidade Ativa
+                    Identity Guard Active
                   </div>
                   {compilationResult.warnings.map((w, idx) => (
                     <p key={idx} className="text-[10px] text-amber-200/90 leading-tight">
@@ -1309,10 +1620,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* Attached References required */}
+              {/* Attached Master References */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-zinc-400 block">
-                  Fotos para Anexar no Flow:
+                  Attach in Google Flow:
                 </label>
                 <div className="flex flex-wrap gap-1">
                   {compilationResult.attachedReferences.map((ref) => (
@@ -1329,13 +1640,13 @@ export default function App() {
               {/* Prompt Output */}
               <div className="flex-1 flex flex-col min-h-0 space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-zinc-400">Prompt Montado (Inglês):</label>
+                  <label className="text-[11px] font-bold text-zinc-400">Structured Prompt (English):</label>
                   <button
                     onClick={handleCopyPrompt}
                     className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"
                   >
                     {copiedPrompt ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedPrompt ? 'Copiado!' : 'Copiar'}
+                    {copiedPrompt ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
                 <div className="flex-1 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 leading-relaxed overflow-y-auto select-all max-h-48">
@@ -1346,13 +1657,13 @@ export default function App() {
               {/* Negative Prompt */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-zinc-400">Prompt Negativo:</label>
+                  <label className="text-[11px] font-bold text-zinc-400">Negative Prompt:</label>
                   <button
                     onClick={handleCopyNeg}
                     className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white font-medium"
                   >
                     {copiedNeg ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedNeg ? 'Copiado!' : 'Copiar'}
+                    {copiedNeg ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
                 <div className="p-2 bg-zinc-900/60 border border-zinc-800 rounded-xl text-[11px] font-mono text-zinc-400 leading-normal select-all">
@@ -1364,7 +1675,96 @@ export default function App() {
         )}
       </main>
 
-      {/* Timeline Sequencer Modal (Buzzy.now continuous movie player) */}
+      {/* Character.ai Persona Editor Modal */}
+      {isCharacterEditorOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <User className="w-4 h-4 text-emerald-400" />
+                Edit Character Persona (Character.ai)
+              </h3>
+              <button
+                onClick={() => setIsCharacterEditorOpen(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-400">Character Name</label>
+                <input
+                  type="text"
+                  value={editingCharacter.name}
+                  onChange={(e) => setEditingCharacter({ ...editingCharacter, name: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-400">Tagline / Role</label>
+                <input
+                  type="text"
+                  value={editingCharacter.tagline || ''}
+                  onChange={(e) => setEditingCharacter({ ...editingCharacter, tagline: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-400">Greeting Message</label>
+                <textarea
+                  rows={2}
+                  value={editingCharacter.greeting || ''}
+                  onChange={(e) => setEditingCharacter({ ...editingCharacter, greeting: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-400">Personality & Background</label>
+                <textarea
+                  rows={2}
+                  value={editingCharacter.personality || ''}
+                  onChange={(e) => setEditingCharacter({ ...editingCharacter, personality: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-400">Face Consistency Anchor (howToCite)</label>
+                <input
+                  type="text"
+                  value={editingCharacter.howToCite}
+                  onChange={(e) => setEditingCharacter({ ...editingCharacter, howToCite: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-200"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setIsCharacterEditorOpen(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCharacter}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 shadow-md"
+              >
+                Save Persona
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline Sequencer Modal (Buzzy continuous movie player) */}
       <TimelinePlayer
         shots={shots}
         isOpen={isTimelineOpen}

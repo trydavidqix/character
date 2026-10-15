@@ -46,10 +46,15 @@ export function compileScenePrompt(character: CharacterSheet, shot: SceneShot): 
   // 3. Assemble structured Flow-compatible prompt in English
   const promptParts: string[] = [];
 
-  // Part 1: Framing and Camera Angle
-  if (shot.framing || shot.cameraAngle) {
-    const cameraPart = [shot.framing, shot.cameraAngle].filter(Boolean).join(', ');
-    promptParts.push(cameraPart);
+  // Part 1: Framing, Camera Angle and Camera Movement (Buzzy Motion Control)
+  const cameraElements: string[] = [];
+  if (shot.framing) cameraElements.push(shot.framing);
+  if (shot.cameraAngle) cameraElements.push(shot.cameraAngle);
+  if (shot.cameraMovement && shot.cameraMovement !== 'Static / None') {
+    cameraElements.push(`camera motion: ${shot.cameraMovement}`);
+  }
+  if (cameraElements.length > 0) {
+    promptParts.push(cameraElements.join(', '));
   }
 
   // Part 2: Subject Consistency Anchor (Crucial for Flow/FaceID)
@@ -65,17 +70,31 @@ export function compileScenePrompt(character: CharacterSheet, shot: SceneShot): 
     promptParts.push(cleanAction);
   }
 
-  // Part 5: Environment and Background
+  // Part 5: Character.ai Dialogue Line integration (Lip Sync & Expression)
+  if (shot.dialogueLine && shot.dialogueLine.trim()) {
+    promptParts.push(`the subject delivering spoken line with natural facial expression: "${shot.dialogueLine.trim()}"`);
+  }
+
+  // Part 6: Environment and Background
   if (cleanEnv) {
     promptParts.push(cleanEnv);
   }
 
-  // Part 6: Lighting
+  // Part 7: Lighting
   if (shot.lighting) {
     promptParts.push(shot.lighting);
   }
 
-  // Part 7: Optical rendering quality tags
+  // Part 8: Buzzy Workflow Skill Aesthetic Styling
+  if (shot.skillWorkflow === 'film') {
+    promptParts.push('cinematic film shot, cinematic 35mm lighting, color graded for cinema, master narrative composition');
+  } else if (shot.skillWorkflow === 'ads') {
+    promptParts.push('high-conversion commercial advertisement style, vibrant crisp studio lighting, premium commercial color grade, high-energy marketing aesthetic');
+  } else if (shot.skillWorkflow === 'animation') {
+    promptParts.push('stylized dynamic anime animation aesthetic, expressive keyframe motion, vibrant cel-shaded color palette');
+  }
+
+  // Part 9: Optical rendering quality tags
   promptParts.push('captured with high optical fidelity, sharp focus on subject, natural skin texture, 35mm filmic depth of field');
 
   const finalPrompt = promptParts.join(', ');
@@ -101,6 +120,8 @@ export function compileScenePrompt(character: CharacterSheet, shot: SceneShot): 
     characterId: character.id,
     shotId: shot.id,
     aspectRatio: shot.aspectRatio,
+    skillWorkflow: shot.skillWorkflow,
+    cameraMovement: shot.cameraMovement,
   };
 }
 

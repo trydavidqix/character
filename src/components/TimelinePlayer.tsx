@@ -177,7 +177,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
             <button
               onClick={() => setIsMuted(prev => !prev)}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 transition-colors"
-              title={isMuted ? 'Ativar Áudio' : 'Mutar Áudio'}
+              title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
             </button>
@@ -186,7 +186,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
           <button
             onClick={onClose}
             className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 transition-colors"
-            title="Fechar (Esc)"
+            title="Close (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
@@ -228,25 +228,37 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
                 <Film className="w-8 h-8 text-emerald-500" />
               </div>
               <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-1">
-                Aguardando Mídia do Google Flow
+                Awaiting Google Flow Media
               </span>
               <h3 className="text-xl font-bold text-white mb-2">{currentShot.title}</h3>
               <p className="text-xs text-zinc-400 mb-4 line-clamp-3">{currentShot.framing}</p>
               <div className="px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 text-[11px] text-zinc-500 font-mono">
-                Transição automática em 3.5s (ou avance nas setas)
+                Auto transition in 3.5s (or skip with arrow keys)
               </div>
             </div>
           )}
 
-          {/* Subtitle / Camera Overlay */}
-          <div className="absolute bottom-4 left-4 right-4 bg-zinc-950/80 backdrop-blur-md border border-zinc-800/80 rounded-xl p-3 flex items-center justify-between pointer-events-none">
-            <div className="max-w-2xl truncate">
-              <span className="text-[10px] uppercase font-bold text-emerald-400 font-mono mr-2">Tomada:</span>
-              <span className="text-xs text-zinc-200 font-medium">{currentShot.framing}</span>
+          {/* Subtitle / Camera Overlay (Buzzy + Character.ai) */}
+          <div className="absolute bottom-4 left-4 right-4 bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 rounded-xl p-3 flex flex-col pointer-events-none">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2 max-w-2xl truncate">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 font-mono">Shot {currentIndex + 1}:</span>
+                <span className="text-xs text-zinc-200 font-medium truncate">{currentShot.framing}</span>
+                {currentShot.cameraMovement && (
+                  <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded">
+                    🎥 {currentShot.cameraMovement}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-zinc-400 font-mono">
+                Aspect: {currentShot.aspectRatio}
+              </span>
             </div>
-            <span className="text-[10px] text-zinc-400 font-mono">
-              Aspect: {currentShot.aspectRatio}
-            </span>
+            {currentShot.dialogueLine && (
+              <p className="text-xs text-emerald-300 italic font-medium mt-1 truncate">
+                "{currentShot.dialogueLine}"
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -267,7 +279,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
             <button
               onClick={handleRestart}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 transition-colors"
-              title="Reiniciar Timeline"
+              title="Restart Timeline"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -275,23 +287,23 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
               onClick={handlePrev}
               disabled={currentIndex === 0}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Cena Anterior"
+              title="Previous Shot"
             >
               <SkipBack className="w-4 h-4" />
             </button>
             <button
               onClick={() => setIsPlaying(prev => !prev)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold flex items-center gap-2 shadow-lg shadow-emerald-950 transition-colors"
-              title="Play / Pause (Espaço)"
+              title="Play / Pause (Space)"
             >
               {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
-              <span className="text-xs">{isPlaying ? 'Pausar' : 'Reproduzir'}</span>
+              <span className="text-xs">{isPlaying ? 'Pause' : 'Play'}</span>
             </button>
             <button
               onClick={handleNext}
               disabled={currentIndex === shots.length - 1}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Próxima Cena"
+              title="Next Shot"
             >
               <SkipForward className="w-4 h-4" />
             </button>
@@ -308,7 +320,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
                     ? 'border-emerald-500 ring-2 ring-emerald-500/50 scale-105'
                     : 'border-zinc-800 opacity-60 hover:opacity-100'
                 }`}
-                title={`Ir para Cena ${idx + 1}: ${shot.title}`}
+                title={`Go to Shot ${idx + 1}: ${shot.title}`}
               >
                 {shot.mediaUrl ? (
                   shot.mediaType === 'video' ? (

@@ -103,4 +103,58 @@ describe('Prompt Compiler - Character Consistency Engine', () => {
     expect(result.attachedReferences).toContain('Maga_121.jpg');
     expect(result.attachedReferences.length).toBeGreaterThan(megalina.standardReferences.length);
   });
+
+  it('incorporates Buzzy camera movements and skill workflows', () => {
+    const filmShot: SceneShot = {
+      id: 'shot-film',
+      title: 'Cinematic Noir',
+      framing: 'Medium close-up',
+      cameraAngle: 'low angle',
+      cameraMovement: 'Dolly In (Push forward)',
+      skillWorkflow: 'film',
+      lighting: 'deep moody shadows',
+      environment: 'foggy alley',
+      action: 'looking intensely into the lens',
+      aspectRatio: '16:9',
+    };
+
+    const filmResult = compileScenePrompt(megalina, filmShot);
+    expect(filmResult.finalPrompt).toContain('camera motion: Dolly In (Push forward)');
+    expect(filmResult.finalPrompt).toContain('cinematic film shot');
+    expect(filmResult.skillWorkflow).toBe('film');
+
+    const adShot: SceneShot = {
+      id: 'shot-ad',
+      title: 'UGC Commercial',
+      framing: 'Selfie framing',
+      cameraAngle: 'eye level',
+      skillWorkflow: 'ads',
+      lighting: 'ring light',
+      environment: 'bright kitchen',
+      action: 'smiling holding product',
+      aspectRatio: '9:16',
+    };
+
+    const adResult = compileScenePrompt(megalina, adShot);
+    expect(adResult.finalPrompt).toContain('high-conversion commercial advertisement style');
+    expect(adResult.skillWorkflow).toBe('ads');
+  });
+
+  it('incorporates Character.ai dialogue lines into prompt', () => {
+    const dialogueShot: SceneShot = {
+      id: 'shot-dialogue',
+      title: 'Dialogue scene',
+      framing: 'Medium close-up',
+      cameraAngle: 'straight on',
+      lighting: 'golden hour',
+      environment: 'balcony',
+      action: 'standing near the railing',
+      dialogueLine: 'We have arrived at the destination.',
+      aspectRatio: '16:9',
+    };
+
+    const result = compileScenePrompt(megalina, dialogueShot);
+    expect(result.finalPrompt).toContain('the subject delivering spoken line with natural facial expression: "We have arrived at the destination."');
+  });
 });
+
