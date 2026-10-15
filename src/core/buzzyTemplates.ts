@@ -11,12 +11,12 @@ export interface BuzzyTemplate {
 export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
   {
     id: 'film-cinematic-mystery',
-    name: 'AI Film: Cinematic Noir & Mystery',
+    name: 'Filme IA: Mistério Cinematográfico Noir',
     category: 'film',
-    description: 'A 3-shot cinematic story progression with moody lighting, establishing camera push and dramatic close-up.',
+    description: 'Progressão cinematográfica em 3 cenas com iluminação dramática, avanço de câmera e close-up de suspense.',
     shots: [
       {
-        title: 'Establishing Shot: Arrival',
+        title: 'Cena 1 (Scene 1): Chegada Misteriosa',
         framing: 'Wide shot establishing subject and environment',
         cameraAngle: 'low angle looking up with slight camera tilt',
         cameraMovement: 'Dolly In (Push forward)',
@@ -27,7 +27,7 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
         aspectRatio: '16:9',
       },
       {
-        title: 'Medium Shot: The Encounter',
+        title: 'Cena 2 (Scene 2): O Encontro',
         framing: 'Medium waist-up portrait framing',
         cameraAngle: 'three-quarter view facing slightly away from lens',
         cameraMovement: 'Cinematic Pan (Smooth lateral sweep)',
@@ -38,7 +38,7 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
         aspectRatio: '16:9',
       },
       {
-        title: 'Close-Up: Decision Moment',
+        title: 'Cena 3 (Scene 3): Momento Decisivo',
         framing: 'Tight dramatic close-up headshot tack sharp on eyes',
         cameraAngle: 'straight on eye level with intense cinematic focus',
         cameraMovement: 'Orbit 360 (Circular rotation)',
@@ -52,12 +52,12 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
   },
   {
     id: 'ads-viral-ugc',
-    name: 'AI Ads: High-Conversion UGC Viral Pack',
+    name: 'Anúncios IA: Pacote Viral UGC de Alta Conversão',
     category: 'ads',
-    description: 'Fast-paced commercial format: 0-3s attention hook, product interaction demo, and high-energy CTA.',
+    description: 'Formato comercial dinâmico: gancho de atenção de 0-3s, demonstração de produto e chamada para ação (CTA).',
     shots: [
       {
-        title: '0-3s Scroll Hook: The Shock',
+        title: 'Cena 1 (Scene 1): Gancho de 0-3s',
         framing: 'Dynamic close-up selfie angle',
         cameraAngle: 'slight high angle looking down towards energetic subject',
         cameraMovement: 'FPV Drone (Dynamic flythrough)',
@@ -68,7 +68,7 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
         aspectRatio: '9:16',
       },
       {
-        title: 'Benefit Showcase: The Demonstration',
+        title: 'Cena 2 (Scene 2): Demonstração de Benefícios',
         framing: 'Medium waist-up demonstration framing',
         cameraAngle: 'eye level centered composition',
         cameraMovement: 'Dolly In (Push forward)',
@@ -79,7 +79,7 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
         aspectRatio: '9:16',
       },
       {
-        title: 'Call to Action: The Closer',
+        title: 'Cena 3 (Scene 3): Chamada para Ação (CTA)',
         framing: 'Medium close-up punchy framing',
         cameraAngle: 'direct eye level engaging viewer directly',
         cameraMovement: 'Low-Angle Hero (Upward power shot)',
@@ -93,12 +93,12 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
   },
   {
     id: 'animation-anime-burst',
-    name: 'AI Animation: Dynamic Anime Sequence',
+    name: 'Animação IA: Sequência de Ação e Aventura',
     category: 'animation',
-    description: 'Expressive animation storyboard with anime keyframe dynamics and high-energy camera angles.',
+    description: 'Storyboard expressivo de animação com enquadramentos de alta energia e dinâmica de anime.',
     shots: [
       {
-        title: 'Keyframe 1: Quiet Focus',
+        title: 'Cena 1 (Scene 1): Foco Silencioso',
         framing: 'Cinematic wide silhouette with wind motion',
         cameraAngle: 'low angle horizon view',
         cameraMovement: 'Cinematic Pan (Smooth lateral sweep)',
@@ -109,7 +109,7 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
         aspectRatio: '16:9',
       },
       {
-        title: 'Keyframe 2: Power Awakening',
+        title: 'Cena 2 (Scene 2): Despertar do Poder',
         framing: 'Dynamic medium shot with diagonal Dutch angle',
         cameraAngle: 'steep Dutch tilt angle emphasizing kinetic energy',
         cameraMovement: 'Dolly Out (Pull back)',
@@ -120,7 +120,7 @@ export const buzzyWorkflowTemplates: BuzzyTemplate[] = [
         aspectRatio: '16:9',
       },
       {
-        title: 'Keyframe 3: Heroic Climax',
+        title: 'Cena 3 (Scene 3): Clímax Heroico',
         framing: 'Extreme close-up eye focus with animated light trails',
         cameraAngle: 'level straight-on hero angle',
         cameraMovement: 'Orbit 360 (Circular rotation)',

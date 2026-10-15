@@ -57,7 +57,7 @@ export const buzzyCameraMovements = [
 const initialShots: SceneShot[] = [
   {
     id: 'shot-1',
-    title: 'Historic Limestone Portrait',
+    title: 'Cena 1 (Scene 1): Retrato Histórico em Calcário',
     framing: 'A medium close-up, waist-up portrait',
     cameraAngle: 'chest facing camera, head turned forty-five degrees to the right',
     cameraMovement: 'Dolly In (Push forward)',
@@ -70,7 +70,7 @@ const initialShots: SceneShot[] = [
   },
   {
     id: 'shot-2',
-    title: 'Poolside Sunset Glow',
+    title: 'Cena 2 (Scene 2): Pôr do Sol na Piscina',
     framing: 'Medium portrait framing from chest up',
     cameraAngle: 'three-quarter view looking slightly away from lens',
     cameraMovement: 'Cinematic Pan (Smooth lateral sweep)',
@@ -83,7 +83,7 @@ const initialShots: SceneShot[] = [
   },
   {
     id: 'shot-3',
-    title: 'Commercial Studio Focus',
+    title: 'Cena 3 (Scene 3): Foco Comercial em Estúdio',
     framing: 'Close-up headshot tack sharp on eyes and accessories',
     cameraAngle: 'straight on at eye level',
     cameraMovement: 'Orbit 360 (Circular rotation)',
@@ -289,7 +289,7 @@ export default function App() {
 
     if (isSceneRequest) {
       draftShot = {
-        title: `${selectedCharacter.name}: Scene ${shots.length + 1}`,
+        title: `${selectedCharacter.name}: Cena ${shots.length + 1} (Scene ${shots.length + 1})`,
         framing: 'Medium close-up portrait, chest up',
         cameraAngle: 'three-quarter view facing camera',
         cameraMovement: 'Dolly In (Push forward)',
@@ -391,7 +391,7 @@ export default function App() {
     const newId = `shot-${Date.now()}`;
     const newShot: SceneShot = {
       id: newId,
-      title: shotData.title || `Scene ${shots.length + 1}`,
+      title: shotData.title || `Cena ${shots.length + 1} (Scene ${shots.length + 1})`,
       framing: shotData.framing || 'Medium close-up portrait',
       cameraAngle: shotData.cameraAngle || 'eye level',
       cameraMovement: shotData.cameraMovement || 'Dolly In (Push forward)',
@@ -424,11 +424,11 @@ export default function App() {
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target?.result as string;
-        setChatInput(`Create a soap opera storyboard based on this story: ${content.slice(0, 500)}`);
+        setChatInput(`Cria uma novela baseada nesta história: ${content.slice(0, 500)}`);
       };
       reader.readAsText(file);
     } else {
-      setChatInput(`Create a soap opera storyboard based on the reference: ${file.name}`);
+      setChatInput(`Cria uma novela baseada na referência: ${file.name}`);
     }
   };
 
@@ -562,11 +562,11 @@ export default function App() {
   const handleCreateNewCharacter = () => {
     const newChar: CharacterSheet = {
       id: `char-${Date.now()}`,
-      name: 'New Persona',
-      internalName: 'New Persona',
+      name: 'Nova Persona',
+      internalName: 'Nova Persona',
       gender: 'f',
       neverWriteNameInPrompt: false,
-      tagline: 'Custom Creative Persona',
+      tagline: 'Persona Criativa Personalizada',
       howToCite: 'the same person as in the reference images, face and features identical to the references, unchanged',
       identityBlockEn: 'natural facial features, clean studio styling, no tattoos, no piercings',
       fixedTraits: {
@@ -577,7 +577,7 @@ export default function App() {
       forbiddenWords: ['tattoo', 'piercing', 'beauty filter'],
       negativePromptEn: 'no tattoos, no piercings, no beauty filter, no plastic skin',
       standardReferences: ['master_ref_01.png', 'master_ref_02.png'],
-      greeting: "Hello! I'm your new custom persona. Let's start developing scenes together!",
+      greeting: "Olá! Sou sua nova persona. Vamos criar cenas e roteiros juntos!",
       personality: 'Creative, expressive, collaborative, and focused on filmic continuity.',
       voicePitch: 1.0,
       voiceRate: 1.0,
@@ -600,13 +600,13 @@ export default function App() {
               <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
                 Antigravity Hub
               </h1>
-              <p className="text-[10px] text-zinc-400">Conversational Studio</p>
+              <p className="text-[10px] text-zinc-400">Estúdio Conversacional</p>
             </div>
           </div>
 
           <button
             onClick={() => setIsTemplateMenuOpen(prev => !prev)}
-            title="Load Buzzy Pre-built Storyboard Templates"
+            title="Carregar Modelos de Roteiro Buzzy"
             className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-emerald-400 hover:text-emerald-300 transition-colors"
           >
             <Wand2 className="w-4 h-4" />
@@ -618,14 +618,14 @@ export default function App() {
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-emerald-400" />
-              Personas
+              Personagens
             </span>
             <button
               onClick={handleCreateNewCharacter}
               className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-md"
             >
               <Plus className="w-3 h-3" />
-              New Persona
+              Novo Personagem
             </button>
           </div>
 
@@ -661,7 +661,7 @@ export default function App() {
                       e.stopPropagation();
                       handleSpeak(`Hello, I am ${char.name}.`);
                     }}
-                    title="Test Voice"
+                    title="Ouvir Voz"
                     className="p-1 text-zinc-500 hover:text-emerald-400 rounded"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
@@ -673,7 +673,7 @@ export default function App() {
                       setEditingCharacter({ ...char });
                       setIsCharacterEditorOpen(true);
                     }}
-                    title="Edit Persona Parameters"
+                    title="Editar Parâmetros do Personagem"
                     className="p-1 text-zinc-500 hover:text-zinc-200 rounded"
                   >
                     <Settings className="w-3.5 h-3.5" />
@@ -689,16 +689,16 @@ export default function App() {
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
               <Film className="w-3.5 h-3.5 text-emerald-400" />
-              Storyboard ({shots.length})
+              Roteiro ({shots.length})
             </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsCanvasOpen(true)}
-                title="Open 2D Node Canvas Graph"
+                title="Abrir Grafo 2D de Cenas"
                 className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded font-mono"
               >
                 <Network className="w-3 h-3" />
-                2D Canvas
+                Grafo 2D
               </button>
             </div>
           </div>
@@ -748,7 +748,7 @@ export default function App() {
                     e.stopPropagation();
                     handleCopyFlowPrompt(shot);
                   }}
-                  title="Copy Flow Prompt"
+                  title="Copiar Prompt do Flow"
                   className="p-1 text-zinc-500 hover:text-emerald-400 rounded shrink-0"
                 >
                   {copiedPromptId === shot.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -764,14 +764,14 @@ export default function App() {
               className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition-colors"
             >
               <Play className="w-3.5 h-3.5 fill-white" />
-              Play Movie Sequence
+              Assistir Sequência do Filme
             </button>
 
             <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={handleExportFlowPrompts}
                 className="py-1.5 px-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors"
-                title="Export Sequenced Prompts for Google Flow"
+                title="Exportar Prompts Sequenciais para o Google Flow"
               >
                 <FileText className="w-3 h-3 text-emerald-400" />
                 Flow
@@ -780,18 +780,18 @@ export default function App() {
               <button
                 onClick={() => exportProjectJson(selectedCharacter, shots)}
                 className="py-1.5 px-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors"
-                title="Save Project JSON"
+                title="Salvar Projeto JSON"
               >
                 <Download className="w-3 h-3 text-emerald-400" />
-                Save
+                Salvar
               </button>
 
               <label 
                 className="py-1.5 px-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                title="Load Saved Project JSON"
+                title="Carregar Projeto JSON Salvo"
               >
                 <Upload className="w-3 h-3 text-emerald-400" />
-                Load
+                Carregar
                 <input
                   type="file"
                   accept=".json,application/json"
@@ -827,7 +827,7 @@ export default function App() {
             {/* Voice calibration quick controls */}
             <div className="hidden md:flex items-center gap-3 bg-zinc-900 px-3 py-1 rounded-xl border border-zinc-800">
               <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                <span>Pitch:</span>
+                <span>Tom:</span>
                 <span className="font-mono text-emerald-400 text-[11px]">{voicePitch.toFixed(1)}</span>
                 <input
                   type="range"
@@ -841,7 +841,7 @@ export default function App() {
               </div>
               <div className="h-3 w-px bg-zinc-800" />
               <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                <span>Speed:</span>
+                <span>Velocidade:</span>
                 <span className="font-mono text-emerald-400 text-[11px]">{voiceRate.toFixed(1)}</span>
                 <input
                   type="range"
@@ -858,7 +858,7 @@ export default function App() {
             <button
               onClick={() => handleSpeak(chatMessages[chatMessages.length - 1]?.text || selectedCharacter.greeting || '')}
               className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-colors"
-              title="Speak Voice"
+              title="Falar Voz"
             >
               {isSpeaking ? <VolumeX className="w-4 h-4 text-emerald-400" /> : <Volume2 className="w-4 h-4" />}
             </button>
@@ -872,7 +872,7 @@ export default function App() {
                 activeAltIndex: 0,
               }])}
               className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-colors"
-              title="Reset Chat"
+              title="Reiniciar Chat"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -905,7 +905,7 @@ export default function App() {
                     <div className="flex items-center justify-between border-b border-zinc-800/80 pb-1.5">
                       <span className="text-[10px] font-mono font-bold uppercase text-emerald-400 flex items-center gap-1">
                         <Clapperboard className="w-3 h-3" />
-                        {msg.suggestedShot.title || 'Drafted Scene'}
+                        {msg.suggestedShot.title || 'Cena Rascunhada'}
                       </span>
                       <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
                         {msg.suggestedShot.aspectRatio || '16:9'}
@@ -913,10 +913,10 @@ export default function App() {
                     </div>
 
                     <p className="text-[11px] text-zinc-300">
-                      <strong className="text-zinc-400 font-medium">Framing:</strong> {msg.suggestedShot.framing}
+                      <strong className="text-zinc-400 font-medium">Enquadramento:</strong> {msg.suggestedShot.framing}
                     </p>
                     <p className="text-[11px] text-zinc-300">
-                      <strong className="text-zinc-400 font-medium">Camera:</strong> {msg.suggestedShot.cameraMovement}
+                      <strong className="text-zinc-400 font-medium">Câmera:</strong> {msg.suggestedShot.cameraMovement}
                     </p>
                     {msg.suggestedShot.dialogueLine && (
                       <p className="text-[11px] text-emerald-300 italic">
@@ -931,7 +931,7 @@ export default function App() {
                         className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 transition-all shadow-sm"
                       >
                         <Plus className="w-3 h-3" />
-                        Add to Storyboard
+                        Adicionar ao Roteiro
                       </button>
 
                       <button
@@ -955,7 +955,7 @@ export default function App() {
                         className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-[10px] rounded-lg flex items-center gap-1 transition-all"
                       >
                         <Copy className="w-3 h-3 text-emerald-400" />
-                        Copy Flow Prompt
+                        Copiar Prompt Flow
                       </button>
                     </div>
                   </div>
@@ -968,12 +968,12 @@ export default function App() {
                       <div>
                         <span className="text-[10px] uppercase font-bold text-emerald-400 font-mono tracking-wider flex items-center gap-1.5">
                           <Film className="w-3.5 h-3.5" />
-                          Generated Storyboard Package • {msg.storyPackage.genre.toUpperCase()}
+                          Pacote de Roteiro Gerado • {msg.storyPackage.genre.toUpperCase()}
                         </span>
                         <h4 className="text-xs font-bold text-white mt-0.5">{msg.storyPackage.storyTitle}</h4>
                       </div>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
-                        {msg.storyPackage.shots.length} Scenes
+                        {msg.storyPackage.shots.length} Cenas
                       </span>
                     </div>
 
@@ -997,7 +997,7 @@ export default function App() {
                               </span>
                             </div>
                             <p className="text-[11px] text-zinc-300">
-                              <span className="text-zinc-500 font-medium">Framing:</span> {shot.framing}
+                              <span className="text-zinc-500 font-medium">Enquadramento:</span> {shot.framing}
                             </p>
                             {shot.dialogueLine && (
                               <p className="text-[11px] text-emerald-300 italic">
@@ -1014,7 +1014,7 @@ export default function App() {
                                 className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 shrink-0 ml-2"
                               >
                                 {copiedPromptId === shot.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                {copiedPromptId === shot.id ? 'Copied' : 'Copy Flow Prompt'}
+                                {copiedPromptId === shot.id ? 'Copiado!' : 'Copiar Prompt Flow'}
                               </button>
                             </div>
                           </div>
@@ -1030,7 +1030,7 @@ export default function App() {
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-950 transition-all"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        Load All {msg.storyPackage.shots.length} Scenes into Project
+                        Carregar Todas as {msg.storyPackage.shots.length} Cenas no Projeto
                       </button>
 
                       <button
@@ -1042,7 +1042,7 @@ export default function App() {
                         className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-all"
                       >
                         <Play className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
-                        Play in Movie Mode
+                        Assistir no Modo Filme
                       </button>
                     </div>
                   </div>
@@ -1058,7 +1058,7 @@ export default function App() {
                         type="button"
                         onClick={() => handleSwipeAlternative(msg.id, 'prev')}
                         className="hover:text-emerald-400"
-                        title="Previous Alternative Reply"
+                        title="Resposta Alternativa Anterior"
                       >
                         <ChevronLeft className="w-3 h-3" />
                       </button>
@@ -1069,7 +1069,7 @@ export default function App() {
                         type="button"
                         onClick={() => handleSwipeAlternative(msg.id, 'next')}
                         className="hover:text-emerald-400"
-                        title="Next Alternative Reply"
+                        title="Próxima Resposta Alternativa"
                       >
                         <ChevronRight className="w-3 h-3" />
                       </button>
@@ -1083,7 +1083,7 @@ export default function App() {
                       className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded transition-all"
                     >
                       <Plus className="w-3 h-3" />
-                      Create Shot from Line
+                      Criar Cena a partir da Frase
                     </button>
                   )}
                 </div>
@@ -1104,7 +1104,7 @@ export default function App() {
             <div className="flex flex-col items-start">
               <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl px-4 py-2 text-[11px] text-emerald-400 flex items-center gap-2 animate-pulse">
                 <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                {selectedCharacter.name} is developing the storyboard...
+                {selectedCharacter.name} está desenvolvendo o roteiro...
               </div>
             </div>
           )}
@@ -1115,31 +1115,31 @@ export default function App() {
         <div className="p-2 border-t border-zinc-800/80 bg-zinc-950/80 max-w-4xl w-full mx-auto flex gap-1.5 overflow-x-auto shrink-0">
           <button
             type="button"
-            onClick={() => handleSendMessage('Create a 3-scene soap opera drama exploring an unsolved mystery at a Mediterranean villa.')}
+            onClick={() => handleSendMessage('Cria uma novela dramática em 3 cenas com segredos e reviravoltas em uma mansão no Mediterrâneo.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            📺 Create Soap Opera Drama
+            📺 Criar Novela Dramática
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Develop a cinematic mystery short film script with dramatic camera movements.')}
+            onClick={() => handleSendMessage('Desenvolve um roteiro de curta-metragem de mistério cinematográfico com movimentos dramáticos de câmera.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            🎬 Cinematic Mystery Script
+            🎬 Roteiro de Mistério Cinematográfico
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Generate a high-conversion 3-scene viral commercial ad for mobile 9:16.')}
+            onClick={() => handleSendMessage('Gera um comercial viral em 3 cenas de alta conversão para mobile no formato 9:16.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            📢 Viral UGC Commercial
+            📢 Comercial Viral UGC
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Produce a stylized anime action sequence storyboard with cel-shaded colors.')}
+            onClick={() => handleSendMessage('Produz um roteiro de sequência de ação anime estilizada com dinâmica de alta energia.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            ✨ Anime Action Storyboard
+            ✨ Roteiro Anime de Ação
           </button>
         </div>
 
@@ -1147,7 +1147,7 @@ export default function App() {
         <div className="p-4 border-t border-zinc-800 bg-zinc-950 max-w-4xl w-full mx-auto shrink-0">
           <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex gap-2">
             <label 
-              title="Attach synopsis text file or reference" 
+              title="Anexar sinopse, arquivo de texto ou imagem de referência" 
               className="p-2.5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-emerald-400 cursor-pointer flex items-center justify-center transition-colors shrink-0"
             >
               <Paperclip className="w-4 h-4" />
@@ -1160,7 +1160,7 @@ export default function App() {
             </label>
             <input
               type="text"
-              placeholder={`Tell ${selectedCharacter.name}: e.g. "Create a soap opera about...", or attach a story reference...`}
+              placeholder={`Fale com ${selectedCharacter.name}: ex. "Cria uma novela sobre...", ou anexe uma referência...`}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 placeholder:text-zinc-600 shadow-inner"
@@ -1183,7 +1183,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <Network className="w-4 h-4 text-emerald-400" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-                2D Storyboard Graph Canvas (Buzzy)
+                Grafo 2D do Roteiro (Buzzy Canvas)
               </h3>
             </div>
             <button
@@ -1224,7 +1224,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <User className="w-4 h-4 text-emerald-400" />
-                Character Persona Editor
+                Editor de Personagem & Persona
               </h3>
               <button onClick={() => setIsCharacterEditorOpen(false)} className="text-zinc-400 hover:text-white">
                 <X className="w-4 h-4" />
@@ -1233,7 +1233,7 @@ export default function App() {
 
             <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-400">Character Name</label>
+                <label className="text-xs font-bold text-zinc-400">Nome do Personagem</label>
                 <input
                   type="text"
                   value={editingCharacter.name}
@@ -1243,7 +1243,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-400">Tagline / Role</label>
+                <label className="text-xs font-bold text-zinc-400">Papel / Descrição Rápida (Tagline)</label>
                 <input
                   type="text"
                   value={editingCharacter.tagline || ''}
@@ -1253,7 +1253,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-400">Face Consistency Anchor (howToCite)</label>
+                <label className="text-xs font-bold text-zinc-400">Âncora de Consistência Facial (howToCite - em Inglês para o Flow)</label>
                 <input
                   type="text"
                   value={editingCharacter.howToCite}
@@ -1263,7 +1263,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-400">Fixed Identity & Accessories Block</label>
+                <label className="text-xs font-bold text-zinc-400">Bloco de Identidade e Acessórios Fixos (identityBlockEn)</label>
                 <textarea
                   rows={2}
                   value={editingCharacter.identityBlockEn}
@@ -1273,7 +1273,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-400">Greeting Message</label>
+                <label className="text-xs font-bold text-zinc-400">Mensagem de Boas-vindas (Greeting)</label>
                 <textarea
                   rows={2}
                   value={editingCharacter.greeting || ''}
@@ -1289,14 +1289,14 @@ export default function App() {
                 onClick={() => setIsCharacterEditorOpen(false)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleSaveCharacter}
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 shadow-md"
               >
-                Save Persona
+                Salvar Personagem
               </button>
             </div>
           </div>
@@ -1310,7 +1310,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Wand2 className="w-4 h-4 text-emerald-400" />
-                Buzzy Storyboard Workflows
+                Modelos de Roteiro Buzzy
               </h3>
               <button onClick={() => setIsTemplateMenuOpen(false)} className="text-zinc-400 hover:text-white">
                 <X className="w-4 h-4" />
@@ -1328,7 +1328,7 @@ export default function App() {
                   <div className="text-xs font-bold text-white group-hover:text-emerald-400 flex items-center justify-between">
                     {tmpl.name}
                     <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400">
-                      {tmpl.shots.length} shots
+                      {tmpl.shots.length} cenas
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2">

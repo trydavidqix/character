@@ -177,7 +177,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
             <button
               onClick={() => setIsMuted(prev => !prev)}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 transition-colors"
-              title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+              title={isMuted ? 'Ativar Áudio' : 'Mutar Áudio'}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
             </button>
@@ -186,7 +186,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
           <button
             onClick={onClose}
             className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 transition-colors"
-            title="Close (Esc)"
+            title="Fechar (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
@@ -228,12 +228,12 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
                 <Film className="w-8 h-8 text-emerald-500" />
               </div>
               <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-1">
-                Awaiting Google Flow Media
+                Aguardando Mídia do Google Flow
               </span>
               <h3 className="text-xl font-bold text-white mb-2">{currentShot.title}</h3>
               <p className="text-xs text-zinc-400 mb-4 line-clamp-3">{currentShot.framing}</p>
               <div className="px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 text-[11px] text-zinc-500 font-mono">
-                Auto transition in 3.5s (or skip with arrow keys)
+                Transição automática em 3.5s (ou avance com as setas do teclado)
               </div>
             </div>
           )}
@@ -242,7 +242,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
           <div className="absolute bottom-4 left-4 right-4 bg-zinc-950/85 backdrop-blur-md border border-zinc-800/80 rounded-xl p-3 flex flex-col pointer-events-none">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2 max-w-2xl truncate">
-                <span className="text-[10px] uppercase font-bold text-emerald-400 font-mono">Shot {currentIndex + 1}:</span>
+                <span className="text-[10px] uppercase font-bold text-emerald-400 font-mono">Cena {currentIndex + 1}:</span>
                 <span className="text-xs text-zinc-200 font-medium truncate">{currentShot.framing}</span>
                 {currentShot.cameraMovement && (
                   <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded">
@@ -251,7 +251,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
                 )}
               </div>
               <span className="text-[10px] text-zinc-400 font-mono">
-                Aspect: {currentShot.aspectRatio}
+                Proporção: {currentShot.aspectRatio}
               </span>
             </div>
             {currentShot.dialogueLine && (
@@ -279,7 +279,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
             <button
               onClick={handleRestart}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 transition-colors"
-              title="Restart Timeline"
+              title="Reiniciar Linha do Tempo"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -287,23 +287,23 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
               onClick={handlePrev}
               disabled={currentIndex === 0}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Previous Shot"
+              title="Cena Anterior"
             >
               <SkipBack className="w-4 h-4" />
             </button>
             <button
               onClick={() => setIsPlaying(prev => !prev)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold flex items-center gap-2 shadow-lg shadow-emerald-950 transition-colors"
-              title="Play / Pause (Space)"
+              title="Reproduzir / Pausar (Espaço)"
             >
               {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
-              <span className="text-xs">{isPlaying ? 'Pause' : 'Play'}</span>
+              <span className="text-xs">{isPlaying ? 'Pausar' : 'Reproduzir'}</span>
             </button>
             <button
               onClick={handleNext}
               disabled={currentIndex === shots.length - 1}
               className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Next Shot"
+              title="Próxima Cena"
             >
               <SkipForward className="w-4 h-4" />
             </button>
@@ -320,7 +320,7 @@ export default function TimelinePlayer({ shots, isOpen, onClose, onSelectShot }:
                     ? 'border-emerald-500 ring-2 ring-emerald-500/50 scale-105'
                     : 'border-zinc-800 opacity-60 hover:opacity-100'
                 }`}
-                title={`Go to Shot ${idx + 1}: ${shot.title}`}
+                title={`Ir para Cena ${idx + 1}: ${shot.title}`}
               >
                 {shot.mediaUrl ? (
                   shot.mediaType === 'video' ? (
