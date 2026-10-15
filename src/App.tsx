@@ -12,7 +12,10 @@ import {
   Layers, 
   Camera, 
   Plus, 
-  Download 
+  Download, 
+  RefreshCw,
+  Trash2,
+  CheckCircle2
 } from 'lucide-react';
 import { CharacterSheet, SceneShot } from './core/types';
 import { defaultCharacters } from './core/defaultCharacters';
@@ -64,11 +67,12 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
 
-  // Chat State for Character.ai Simulator
+  // Selected Character
   const selectedCharacter = useMemo(() => {
     return characters.find(c => c.id === selectedCharId) || characters[0];
   }, [characters, selectedCharId]);
 
+  // Chat State for Character.ai Simulator
   const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'char'; text: string }[]>([
     { sender: 'char', text: selectedCharacter.greeting || 'Olá! Pronta para planejar nossa próxima cena?' }
   ]);
@@ -124,19 +128,19 @@ export default function App() {
 
       if (response.ok) {
         const data = await response.json();
-        const reply = data.reply || 'Entendido! Vamos em frente.';
+        const reply = data.reply || 'Entendido! Vamos em frente com a cena.';
         setChatMessages(prev => [...prev, { sender: 'char' as const, text: reply }]);
         handleSpeak(reply);
       } else {
         throw new Error('Bridge error');
       }
     } catch {
-      // Local fallback if bridge is offline
+      // Offline fallback
       let reply = `Entendido! Para manter a fidelidade visual, vou me ater aos traços de ${selectedCharacter.name}.`;
       if (userText.toLowerCase().includes('luz') || userText.toLowerCase().includes('sol')) {
         reply = 'A iluminação forte a 45º dá um contraste fantástico, destacando as sombras naturais sem perder textura!';
       } else if (userText.toLowerCase().includes('roupa') || userText.toLowerCase().includes('estilo')) {
-        reply = 'Aprovado! Peças de linho e tons neutros funcionam muito bem com os tons quentes das nossas referências.';
+        reply = 'Aprovado! Peças de linho e tons neutros funcionam perfeitamente com os tons quentes das nossas referências.';
       } else if (userText.toLowerCase().includes('cena')) {
         reply = 'Perfeito. Ajuste o enquadramento no Canvas e copie o prompt formatado em inglês para o Flow!';
       }
@@ -190,16 +194,26 @@ export default function App() {
     const newId = `shot-${Date.now()}`;
     const newShot: SceneShot = {
       id: newId,
-      title: `Nova Cena ${shots.length + 1}`,
+      title: `Nova Tomada ${shots.length + 1}`,
       framing: 'Medium waist-up shot',
       cameraAngle: 'Eye level, looking straight to lens',
-      lighting: 'Warm cinematic sunset light',
-      environment: 'Architectural outdoor terrace',
-      action: 'Natural posture facing camera',
+      lighting: 'Warm cinematic sunset light with natural contrast',
+      environment: 'Architectural outdoor terrace with clean background',
+      action: 'Natural confident posture, neutral expression',
       aspectRatio: '9:16',
     };
     setShots([...shots, newShot]);
     setSelectedShotId(newId);
+  };
+
+  const handleDeleteShot = (shotId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (shots.length <= 1) return;
+    const remaining = shots.filter(s => s.id !== shotId);
+    setShots(remaining);
+    if (selectedShotId === shotId) {
+      setSelectedShotId(remaining[0].id);
+    }
   };
 
   const handleExportCharacter = () => {
@@ -213,54 +227,54 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
+    <div className="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden select-none">
       {/* Top Navbar */}
-      <header className="h-16 border-b border-zinc-800 bg-zinc-900/90 px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
-        <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Sparkles className="w-5 h-5 text-zinc-950 font-bold" />
+      <header className="h-14 border-b border-zinc-800/80 bg-zinc-900/95 px-5 flex items-center justify-between shrink-0 z-30">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <Sparkles className="w-4 h-4" />
           </div>
-          <div>
-            <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
-              Character & Buzzy Studio
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/30">
-                v1.0 Cloud
-              </span>
-            </h1>
-            <p className="text-xs text-zinc-400">Motor de consistência idêntica para Google Flow & Nano Banana</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-bold text-white tracking-tight">Character & Buzzy Studio</h1>
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              AGY Ativo
+            </span>
           </div>
         </div>
 
-        {/* Character Selector & Mode Switch */}
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center bg-zinc-800 rounded-lg p-1 border border-zinc-700">
-            <button
-              onClick={() => setActiveTab('character')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                activeTab === 'character'
-                  ? 'bg-zinc-700 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              <User className="w-3.5 h-3.5 text-emerald-400" />
-              Character Lab
-            </button>
-            <button
-              onClick={() => setActiveTab('canvas')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                activeTab === 'canvas'
-                  ? 'bg-zinc-700 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              <Film className="w-3.5 h-3.5 text-emerald-400" />
-              Scene Canvas
-            </button>
-          </div>
+        {/* Tab Switcher */}
+        <div className="flex items-center bg-zinc-950/80 rounded-lg p-0.5 border border-zinc-800">
+          <button
+            onClick={() => setActiveTab('character')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              activeTab === 'character'
+                ? 'bg-zinc-800 text-white shadow'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <User className="w-3.5 h-3.5 text-emerald-400" />
+            Character Lab
+          </button>
+          <button
+            onClick={() => setActiveTab('canvas')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              activeTab === 'canvas'
+                ? 'bg-zinc-800 text-white shadow'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Film className="w-3.5 h-3.5 text-emerald-400" />
+            Scene Canvas
+          </button>
+        </div>
 
-          {/* Character Switcher */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">Personagem:</span>
+        {/* Character Switcher & Export */}
+        <div className="flex items-center space-x-2.5">
+          <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700/80 rounded-lg px-2.5 py-1">
+            <div className="w-5 h-5 rounded-full bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-300">
+              {selectedCharacter.name[0]}
+            </div>
             <select
               value={selectedCharId}
               onChange={(e) => {
@@ -270,10 +284,12 @@ export default function App() {
                   setChatMessages([{ sender: 'char', text: char.greeting || 'Olá!' }]);
                 }
               }}
-              className="bg-zinc-800 text-xs font-semibold text-zinc-200 px-3 py-1.5 rounded-lg border border-zinc-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="bg-transparent text-xs font-semibold text-zinc-100 focus:outline-none cursor-pointer pr-1"
             >
               {characters.map(char => (
-                <option key={char.id} value={char.id}>{char.name} ({char.gender === 'f' ? 'F' : 'M'})</option>
+                <option key={char.id} value={char.id} className="bg-zinc-900 text-white">
+                  {char.name} ({char.gender === 'f' ? 'Feminino' : 'Masculino'})
+                </option>
               ))}
             </select>
           </div>
@@ -281,164 +297,176 @@ export default function App() {
           <button
             onClick={handleExportCharacter}
             title="Exportar Character Card JSON"
-            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 transition-colors"
+            className="p-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 rounded-lg text-zinc-300 transition-colors"
           >
             <Download className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Studio Body */}
       <main className="flex-1 overflow-hidden flex">
         {activeTab === 'character' ? (
           /* ================= CHARACTER LAB TAB (Character.ai) ================= */
-          <div className="flex-1 grid grid-cols-12 overflow-y-auto">
-            {/* Left: Persona Definition Sheet */}
-            <div className="col-span-7 border-r border-zinc-800 p-8 space-y-6">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left: Persona Identity Sheet */}
+            <div className="w-[58%] border-r border-zinc-800/80 overflow-y-auto p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div>
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <User className="w-5 h-5 text-emerald-400" />
-                    Ficha de Identidade do Personagem
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <User className="w-4 h-4 text-emerald-400" />
+                    Ficha de Consistência — {selectedCharacter.name}
                   </h2>
-                  <p className="text-xs text-zinc-400">Regras imutáveis que garantem que o rosto e os traços nunca mudem.</p>
+                  <p className="text-xs text-zinc-400">Regras imutáveis que forçam o Google Flow a manter o mesmo rosto.</p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300">
-                  ID: <code className="text-emerald-400 font-mono">{selectedCharacter.id}</code>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-400">
+                  id: {selectedCharacter.id}
                 </span>
               </div>
 
-              {/* Anchor and Identity */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                    Âncora de Citação (howToCite) — Em Inglês
-                  </label>
-                  <p className="text-xs text-zinc-500 mb-1">Injetada obrigatoriamente para forçar o gerador a usar o rosto das referências.</p>
+              {/* howToCite Anchor */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Âncora de Rosto (howToCite) — Em Inglês
+                </label>
+                <input
+                  type="text"
+                  value={selectedCharacter.howToCite}
+                  onChange={(e) => {
+                    const updated = characters.map(c => c.id === selectedCharacter.id ? { ...c, howToCite: e.target.value } : c);
+                    setCharacters(updated);
+                  }}
+                  className="w-full bg-zinc-900/90 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Identity Block */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  Acessórios e Traços Fixos de Identidade
+                </label>
+                <textarea
+                  rows={2}
+                  value={selectedCharacter.identityBlockEn}
+                  onChange={(e) => {
+                    const updated = characters.map(c => c.id === selectedCharacter.id ? { ...c, identityBlockEn: e.target.value } : c);
+                    setCharacters(updated);
+                  }}
+                  className="w-full bg-zinc-900/90 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Fixed Traits Grid */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  Traços Físicos Congelados
+                </label>
+                <div className="grid grid-cols-2 gap-2.5 bg-zinc-900/50 p-3.5 rounded-xl border border-zinc-800/80">
+                  {Object.entries(selectedCharacter.fixedTraits).map(([key, val]) => (
+                    <div key={key} className="space-y-0.5">
+                      <span className="text-[10px] font-mono uppercase text-emerald-400 font-bold">{key}:</span>
+                      <p className="text-xs text-zinc-300 font-medium truncate">{val}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Forbidden Words Badges */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+                  <span>Traços Proibidos ({selectedCharacter.forbiddenWords.length})</span>
+                  <span className="text-[11px] text-zinc-500 lowercase font-normal">Digite e aperte Enter</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl min-h-[70px]">
+                  {selectedCharacter.forbiddenWords.map(word => (
+                    <span
+                      key={word}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-red-950/40 text-red-300 border border-red-900/50 text-xs font-mono"
+                    >
+                      {word}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveForbidden(word)}
+                        className="hover:text-red-100 ml-0.5"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
                   <input
                     type="text"
-                    value={selectedCharacter.howToCite}
-                    onChange={(e) => {
-                      const updated = characters.map(c => c.id === selectedCharacter.id ? { ...c, howToCite: e.target.value } : c);
-                      setCharacters(updated);
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 font-mono"
+                    placeholder="Adicionar traço proibido..."
+                    value={newForbiddenTag}
+                    onChange={(e) => setNewForbiddenTag(e.target.value)}
+                    onKeyDown={handleAddForbidden}
+                    className="bg-transparent text-xs text-zinc-200 px-2 py-0.5 focus:outline-none placeholder:text-zinc-600"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                    Bloco de Acessórios & Identidade Fixa (identityBlockEn)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={selectedCharacter.identityBlockEn}
-                    onChange={(e) => {
-                      const updated = characters.map(c => c.id === selectedCharacter.id ? { ...c, identityBlockEn: e.target.value } : c);
-                      setCharacters(updated);
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
-
-                {/* Fixed Traits Grid */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2 block">
-                    Traços Físicos Fixos
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 bg-zinc-900/60 p-4 rounded-xl border border-zinc-800/80">
-                    {Object.entries(selectedCharacter.fixedTraits).map(([key, val]) => (
-                      <div key={key} className="space-y-1">
-                        <span className="text-[11px] font-mono uppercase text-emerald-400">{key}:</span>
-                        <p className="text-xs text-zinc-300 font-medium">{val}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Forbidden Words Badges */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between mb-1">
-                    <span>Palavras e Traços Proibidos ({selectedCharacter.forbiddenWords.length})</span>
-                    <span className="text-[11px] text-zinc-500 font-normal">Pressione Enter para adicionar</span>
-                  </label>
-                  <div className="flex flex-wrap gap-1.5 p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl min-h-[80px]">
-                    {selectedCharacter.forbiddenWords.map(word => (
-                      <span
-                        key={word}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-950/40 text-red-300 border border-red-900/50 text-xs font-mono"
-                      >
-                        {word}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveForbidden(word)}
-                          className="hover:text-red-100"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder="Adicionar traço proibido..."
-                      value={newForbiddenTag}
-                      onChange={(e) => setNewForbiddenTag(e.target.value)}
-                      onKeyDown={handleAddForbidden}
-                      className="bg-transparent text-xs text-zinc-200 px-2 py-1 focus:outline-none placeholder:text-zinc-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Standard Reference Images Checklist */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1 block">
-                    Arquivos de Referência Mestre Obrigatórios
-                  </label>
-                  <div className="flex gap-2">
-                    {selectedCharacter.standardReferences.map(ref => (
-                      <div key={ref} className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700/80 text-xs font-mono text-zinc-200 flex items-center gap-1.5">
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        {ref}
-                      </div>
-                    ))}
-                  </div>
+              {/* Required Standard References */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  Fotos de Referência Mestre Obrigatórias
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedCharacter.standardReferences.map(ref => (
+                    <div key={ref} className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/80 text-xs font-mono text-zinc-200 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      {ref}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Right: Persona Dialogue Simulator */}
-            <div className="col-span-5 flex flex-col bg-zinc-950/50 p-6">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
+            {/* Right: Character.ai Chat Simulator */}
+            <div className="w-[42%] flex flex-col bg-zinc-950/80">
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 font-bold text-sm">
                     {selectedCharacter.name[0]}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">{selectedCharacter.name}</h3>
-                    <p className="text-[11px] text-zinc-400">{selectedCharacter.personality}</p>
+                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      {selectedCharacter.name}
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    </h3>
+                    <p className="text-[11px] text-zinc-400 line-clamp-1">{selectedCharacter.personality}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleSpeak(chatMessages[chatMessages.length - 1]?.text || '')}
-                  className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white"
-                  title="Ouvir voz da persona"
-                >
-                  {isSpeaking ? <VolumeX className="w-4 h-4 text-emerald-400" /> : <Volume2 className="w-4 h-4" />}
-                </button>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setChatMessages([{ sender: 'char', text: selectedCharacter.greeting || 'Olá!' }])}
+                    title="Limpar Histórico"
+                    className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleSpeak(chatMessages[chatMessages.length - 1]?.text || '')}
+                    className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white"
+                    title="Ouvir voz"
+                  >
+                    {isSpeaking ? <VolumeX className="w-3.5 h-3.5 text-emerald-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
-              {/* Message List */}
-              <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-2">
+              {/* Chat Stream */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
                 {chatMessages.map((msg, i) => (
                   <div
                     key={i}
                     className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
+                      className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
                         msg.sender === 'user'
-                          ? 'bg-emerald-600 text-white rounded-br-none'
-                          : 'bg-zinc-800/90 text-zinc-200 border border-zinc-700/60 rounded-bl-none'
+                          ? 'bg-emerald-600 text-white rounded-br-none shadow-sm'
+                          : 'bg-zinc-900 text-zinc-200 border border-zinc-800 rounded-bl-none shadow-sm'
                       }`}
                     >
                       {msg.text}
@@ -447,26 +475,45 @@ export default function App() {
                 ))}
                 {isThinking && (
                   <div className="flex flex-col items-start">
-                    <div className="bg-zinc-800/80 border border-emerald-500/30 rounded-2xl px-4 py-2 text-xs text-emerald-400 flex items-center gap-2 animate-pulse">
-                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                    <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl px-3 py-1.5 text-[11px] text-emerald-400 flex items-center gap-2 animate-pulse">
+                      <Sparkles className="w-3 h-3 animate-spin" />
                       {selectedCharacter.name} está pensando via AGY...
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Input Form */}
-              <form onSubmit={handleSendMessage} className="mt-auto pt-3 border-t border-zinc-800 flex gap-2">
+              {/* Quick Prompt Chips */}
+              <div className="px-4 py-2 border-t border-zinc-800/80 bg-zinc-900/30 flex gap-1.5 overflow-x-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setChatInput('Qual luz fica melhor na próxima cena?')}
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 whitespace-nowrap border border-zinc-700/50"
+                >
+                  💡 Sugestão de iluminação
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChatInput('Como compor o look e acessórios para manter consistência?')}
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 whitespace-nowrap border border-zinc-700/50"
+                >
+                  👗 Regras do look
+                </button>
+              </div>
+
+              {/* Chat Input */}
+              <form onSubmit={handleSendMessage} className="p-3 border-t border-zinc-800 flex gap-2 shrink-0">
                 <input
                   type="text"
-                  placeholder={`Converse com ${selectedCharacter.name} sobre as cenas...`}
+                  placeholder={`Converse com ${selectedCharacter.name}...`}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 placeholder:text-zinc-600"
+                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 placeholder:text-zinc-600"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-xl flex items-center justify-center transition-all shadow-md shadow-emerald-600/20"
+                  disabled={isThinking}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs rounded-xl flex items-center justify-center transition-all shadow-md shadow-emerald-600/20"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -474,94 +521,144 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* ================= SCENE & CANVAS STUDIO TAB (Buzzy.now) ================= */
-          <div className="flex-1 grid grid-cols-12 overflow-hidden">
-            {/* Left 4 cols: Storyboard Graph / Shot List */}
-            <div className="col-span-3 border-r border-zinc-800 bg-zinc-900/40 p-5 flex flex-col space-y-4 overflow-y-auto">
+          /* ================= SCENE CANVAS TAB (Buzzy.now) ================= */
+          <div className="flex-1 flex overflow-hidden">
+            {/* Column 1: Storyboard Shot Navigator (240px) */}
+            <div className="w-[240px] border-r border-zinc-800/80 bg-zinc-900/30 p-4 flex flex-col space-y-3 shrink-0 overflow-y-auto">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-emerald-400" />
-                  Storyboard de Tomadas
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  Tomadas ({shots.length})
                 </h3>
                 <button
                   onClick={handleAddShot}
-                  className="p-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-md border border-emerald-500/30 text-xs flex items-center gap-1 transition-all"
+                  className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-md border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3 h-3" />
                   Nova
                 </button>
               </div>
 
-              {/* Shot Cards */}
-              <div className="space-y-2.5">
+              {/* Shot List */}
+              <div className="space-y-2">
                 {shots.map((shot, idx) => (
                   <div
                     key={shot.id}
                     onClick={() => setSelectedShotId(shot.id)}
-                    className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all relative group ${
                       selectedShotId === shot.id
-                        ? 'bg-zinc-800/90 border-emerald-500/80 shadow-md shadow-emerald-500/5'
-                        : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-zinc-800/90 border-emerald-500/80 shadow'
+                        : 'bg-zinc-900/60 border-zinc-800/80 hover:border-zinc-700'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[11px] font-mono text-emerald-400">#0{idx + 1}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
-                        {shot.aspectRatio}
-                      </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold">#0{idx + 1}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
+                          {shot.aspectRatio}
+                        </span>
+                        {shots.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteShot(shot.id, e)}
+                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 p-0.5"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <h4 className="text-xs font-bold text-white truncate">{shot.title}</h4>
-                    <p className="text-[11px] text-zinc-400 truncate mt-1">{shot.framing}</p>
+                    <p className="text-[11px] text-zinc-400 truncate mt-0.5">{shot.framing}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Middle 5 cols: Scene Director & Parameters */}
-            <div className="col-span-5 border-r border-zinc-800 p-6 overflow-y-auto space-y-5">
-              <div className="border-b border-zinc-800 pb-3">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-emerald-400" />
-                  Direção da Tomada Atual
-                </h3>
-                <p className="text-xs text-zinc-400">Ajuste os parâmetros visuais da câmera e iluminação.</p>
-              </div>
-
-              {/* Title & Aspect Ratio */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs text-zinc-400 font-medium mb-1 block">Título da Tomada</label>
-                  <input
-                    type="text"
-                    value={activeShot.title}
-                    onChange={(e) => {
-                      const updated = shots.map(s => s.id === activeShot.id ? { ...s, title: e.target.value } : s);
-                      setShots(updated);
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
+            {/* Column 2: Director Stage (Flex-1) */}
+            <div className="flex-1 border-r border-zinc-800/80 p-6 overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div>
-                  <label className="text-xs text-zinc-400 font-medium mb-1 block">Proporção</label>
-                  <select
-                    value={activeShot.aspectRatio}
-                    onChange={(e) => {
-                      const updated = shots.map(s => s.id === activeShot.id ? { ...s, aspectRatio: e.target.value as any } : s);
-                      setShots(updated);
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                  >
-                    <option value="9:16">9:16 (Stories/Reels)</option>
-                    <option value="16:9">16:9 (Cinema)</option>
-                    <option value="2:3">2:3 (Editorial)</option>
-                    <option value="1:1">1:1 (Quadrado)</option>
-                  </select>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-emerald-400" />
+                    Direção da Tomada — {activeShot.title}
+                  </h3>
+                  <p className="text-xs text-zinc-400">Ajuste ângulo, luz e enquadramento para compor o prompt consistente.</p>
+                </div>
+
+                {/* Aspect Ratio Selector */}
+                <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+                  {(['2:3', '9:16', '16:9', '1:1'] as const).map(ratio => (
+                    <button
+                      key={ratio}
+                      type="button"
+                      onClick={() => {
+                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, aspectRatio: ratio } : s);
+                        setShots(updated);
+                      }}
+                      className={`px-2 py-0.5 text-[11px] font-mono font-medium rounded ${
+                        activeShot.aspectRatio === ratio
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {ratio}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Framing Preset / Input */}
-              <div>
-                <label className="text-xs text-zinc-400 font-medium mb-1 block">Enquadramento (Framing)</label>
+              {/* Title Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Título da Cena</label>
+                <input
+                  type="text"
+                  value={activeShot.title}
+                  onChange={(e) => {
+                    const updated = shots.map(s => s.id === activeShot.id ? { ...s, title: e.target.value } : s);
+                    setShots(updated);
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Framing */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Enquadramento (Framing)</label>
+                  <div className="flex gap-1 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'A medium close-up, waist-up portrait' } : s);
+                        setShots(updated);
+                      }}
+                      className="text-zinc-400 hover:text-emerald-400"
+                    >
+                      [Plano Médio]
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'Close-up headshot tack sharp on eyes' } : s);
+                        setShots(updated);
+                      }}
+                      className="text-zinc-400 hover:text-emerald-400"
+                    >
+                      [Close-up]
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: 'Full body shot from head to toe' } : s);
+                        setShots(updated);
+                      }}
+                      className="text-zinc-400 hover:text-emerald-400"
+                    >
+                      [Corpo Inteiro]
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="text"
                   value={activeShot.framing}
@@ -569,13 +666,13 @@ export default function App() {
                     const updated = shots.map(s => s.id === activeShot.id ? { ...s, framing: e.target.value } : s);
                     setShots(updated);
                   }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
 
               {/* Camera Angle */}
-              <div>
-                <label className="text-xs text-zinc-400 font-medium mb-1 block">Ângulo e Posição da Câmera</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Ângulo da Câmera</label>
                 <input
                   type="text"
                   value={activeShot.cameraAngle}
@@ -583,13 +680,37 @@ export default function App() {
                     const updated = shots.map(s => s.id === activeShot.id ? { ...s, cameraAngle: e.target.value } : s);
                     setShots(updated);
                   }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
 
               {/* Lighting */}
-              <div>
-                <label className="text-xs text-zinc-400 font-medium mb-1 block">Iluminação (Lighting & Contrast)</label>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Iluminação e Contraste</label>
+                  <div className="flex gap-1 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: 'bright single-source direct hard sunlight at 45-degree angle casting harsh deep black shadows' } : s);
+                        setShots(updated);
+                      }}
+                      className="text-zinc-400 hover:text-emerald-400"
+                    >
+                      [Sol Duro 45º]
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: 'warm golden hour sun low on horizon, gentle rim light' } : s);
+                        setShots(updated);
+                      }}
+                      className="text-zinc-400 hover:text-emerald-400"
+                    >
+                      [Golden Hour]
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="text"
                   value={activeShot.lighting}
@@ -597,13 +718,13 @@ export default function App() {
                     const updated = shots.map(s => s.id === activeShot.id ? { ...s, lighting: e.target.value } : s);
                     setShots(updated);
                   }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
 
               {/* Environment */}
-              <div>
-                <label className="text-xs text-zinc-400 font-medium mb-1 block">Cenário / Ambiente (Environment)</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Cenário / Ambiente (Environment)</label>
                 <textarea
                   rows={2}
                   value={activeShot.environment}
@@ -611,13 +732,13 @@ export default function App() {
                     const updated = shots.map(s => s.id === activeShot.id ? { ...s, environment: e.target.value } : s);
                     setShots(updated);
                   }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
 
-              {/* Action and Attire */}
-              <div>
-                <label className="text-xs text-zinc-400 font-medium mb-1 block">Vestimenta & Pose da Ação</label>
+              {/* Action / Attire */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Vestimenta & Ação da Tomada</label>
                 <textarea
                   rows={2}
                   value={activeShot.action}
@@ -625,30 +746,32 @@ export default function App() {
                     const updated = shots.map(s => s.id === activeShot.id ? { ...s, action: e.target.value } : s);
                     setShots(updated);
                   }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
             </div>
 
-            {/* Right 4 cols: Live Flow/Nano Banana Output */}
-            <div className="col-span-4 bg-zinc-950 p-6 flex flex-col space-y-4 overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+            {/* Column 3: Live Flow & Nano Banana Output (380px) */}
+            <div className="w-[380px] bg-zinc-950 p-5 flex flex-col space-y-3.5 shrink-0 overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" />
-                  Saída Pronta para o Flow
+                  Pronto para o Google Flow
                 </h3>
-                <span className="text-[11px] text-zinc-500 font-mono">100% Consistente</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono border border-emerald-500/20">
+                  Consistente
+                </span>
               </div>
 
-              {/* Warnings & Sanitization Alerts */}
+              {/* Warnings Box */}
               {compilationResult.warnings.length > 0 && (
-                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/60 space-y-1">
-                  <div className="flex items-center gap-1.5 text-amber-300 text-xs font-bold">
-                    <ShieldAlert className="w-4 h-4" />
-                    Auditoria de Consistência
+                <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/60 space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-300 text-[11px] font-bold">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    Proteção de Identidade Ativa
                   </div>
                   {compilationResult.warnings.map((w, idx) => (
-                    <p key={idx} className="text-[11px] text-amber-200/90 leading-tight">
+                    <p key={idx} className="text-[10px] text-amber-200/90 leading-tight">
                       • {w}
                     </p>
                   ))}
@@ -656,15 +779,15 @@ export default function App() {
               )}
 
               {/* Attached References required */}
-              <div>
-                <label className="text-xs font-semibold text-zinc-400 block mb-1.5">
-                  Imagens de Referência para Anexar:
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-zinc-400 block">
+                  Fotos para Anexar no Flow:
                 </label>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   {compilationResult.attachedReferences.map((ref) => (
                     <span
                       key={ref}
-                      className="px-2.5 py-1 rounded-md bg-zinc-900 border border-emerald-500/40 text-emerald-300 text-xs font-mono"
+                      className="px-2 py-0.5 rounded bg-zinc-900 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono"
                     >
                       {ref}
                     </span>
@@ -672,36 +795,36 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Final Prompt Box */}
-              <div className="flex-1 flex flex-col">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-zinc-400">Prompt Formatado (Inglês):</label>
+              {/* Prompt Output */}
+              <div className="flex-1 flex flex-col min-h-0 space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-zinc-400">Prompt Montado (Inglês):</label>
                   <button
                     onClick={handleCopyPrompt}
-                    className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+                    className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"
                   >
                     {copiedPrompt ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     {copiedPrompt ? 'Copiado!' : 'Copiar'}
                   </button>
                 </div>
-                <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 leading-relaxed overflow-y-auto max-h-52 select-all">
+                <div className="flex-1 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 leading-relaxed overflow-y-auto select-all max-h-56">
                   {compilationResult.finalPrompt}
                 </div>
               </div>
 
-              {/* Negative Prompt Box */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-zinc-400">Prompt Negativo:</label>
+              {/* Negative Prompt */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-zinc-400">Prompt Negativo:</label>
                   <button
                     onClick={handleCopyNeg}
-                    className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 font-medium"
+                    className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white font-medium"
                   >
                     {copiedNeg ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     {copiedNeg ? 'Copiado!' : 'Copiar'}
                   </button>
                 </div>
-                <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-400 leading-normal select-all">
+                <div className="p-2 bg-zinc-900/60 border border-zinc-800 rounded-xl text-[11px] font-mono text-zinc-400 leading-normal select-all">
                   {compilationResult.negativePrompt}
                 </div>
               </div>
