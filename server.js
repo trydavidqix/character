@@ -25,11 +25,11 @@ const server = http.createServer((req, res) => {
       try {
         const { characterName, personality, message, history } = JSON.parse(body || '{}');
 
-        let prompt = `Você é o personagem ${characterName}.\nPersonalidade: ${personality || 'Amigável e criativo'}.\nResponda em português (PT-BR) de forma direta, autêntica, em 1 a 3 frases, mantendo a persona.\n`;
+        let prompt = `You are the character ${characterName}.\nPersonality: ${personality || 'Friendly, authentic, and creative'}.\nRespond in English directly in 1 to 3 sentences, maintaining your persona and using asterisks for scene actions like *adjusts collar and smiles*.\n`;
         if (Array.isArray(history) && history.length > 0) {
-          prompt += '\nHistórico recente:\n' + history.slice(-4).map(h => `${h.sender === 'user' ? 'Usuário' : characterName}: ${h.text}`).join('\n') + '\n';
+          prompt += '\nRecent conversation history:\n' + history.slice(-4).map(h => `${h.sender === 'user' ? 'User' : characterName}: ${h.text}`).join('\n') + '\n';
         }
-        prompt += `\nUsuário: ${message}\n${characterName}:`;
+        prompt += `\nUser: ${message}\n${characterName}:`;
 
         const child = spawn('agy', [
           '--dangerously-skip-permissions',
