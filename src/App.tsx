@@ -19,12 +19,16 @@ import {
   Upload,
   Video,
   Sliders,
-  Network
+  Network,
+  Music,
+  FileText
 } from 'lucide-react';
 import { CharacterSheet, SceneShot } from './core/types';
 import { defaultCharacters } from './core/defaultCharacters';
 import { compileScenePrompt } from './core/promptCompiler';
+import { exportProjectJson, exportFlowPromptsText, parseProjectJson } from './core/projectExporter';
 import SceneCanvas from './components/SceneCanvas';
+import TimelinePlayer from './components/TimelinePlayer';
 
 const initialShots: SceneShot[] = [
   {
@@ -73,6 +77,12 @@ export default function App() {
   const [copiedNeg, setCopiedNeg] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+
+  // Streaming Typewriter state (Character.ai style)
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const chatBottomRef = React.useRef<HTMLDivElement | null>(null);
 
   // Voice Settings for Character.ai
   const [voicePitch, setVoicePitch] = useState<number>(1.0);
@@ -87,6 +97,11 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'char'; text: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [newForbiddenTag, setNewForbiddenTag] = useState('');
+
+  // Auto-scroll chat to bottom on new messages or streaming tokens
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, streamingText]);
 
   // Load chat history from LocalStorage
   useEffect(() => {
@@ -153,9 +168,33 @@ export default function App() {
     window.speechSynthesis.speak(utterance);
   };
 
+  // Streaming Typewriter animation for Character.ai response parity
+  const streamReply = (fullText: string, baseHistory: { sender: 'user' | 'char'; text: string }[]) => {
+    setIsStreaming(true);
+    let index = 0;
+    const chunkSize = 2;
+    const intervalMs = 18;
+
+    setStreamingText('');
+
+    const interval = setInterval(() => {
+      index += chunkSize;
+      if (index >= fullText.length) {
+        clearInterval(interval);
+        setStreamingText(null);
+        setIsStreaming(false);
+        const finalMsgs = [...baseHistory, { sender: 'char' as const, text: fullText }];
+        updateChat(finalMsgs);
+        handleSpeak(fullText);
+      } else {
+        setStreamingText(fullText.slice(0, index));
+      }
+    }, intervalMs);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isThinking) return;
+    if (!chatInput.trim() || isThinking || isStreaming) return;
 
     const userText = chatInput.trim();
     const updated = [...chatMessages, { sender: 'user' as const, text: userText }];
@@ -178,9 +217,7 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         const reply = data.reply || 'Entendido! Vamos em frente com a cena.';
-        const withReply = [...updated, { sender: 'char' as const, text: reply }];
-        updateChat(withReply);
-        handleSpeak(reply);
+        streamReply(reply, updated);
       } else {
         throw new Error('Bridge error');
       }
@@ -194,9 +231,7 @@ export default function App() {
       } else if (userText.toLowerCase().includes('cena')) {
         reply = 'Perfeito. Ajuste o enquadramento no Canvas e copie o prompt formatado em inglês para o Flow!';
       }
-      const withReply = [...updated, { sender: 'char' as const, text: reply }];
-      updateChat(withReply);
-      handleSpeak(reply);
+      streamReply(reply, updated);
     } finally {
       setIsThinking(false);
     }
@@ -347,6 +382,71 @@ export default function App() {
       return s;
     });
     setShots(updated);
+  };
+
+  // Upload handler for custom scene voiceover/audio track (ElevenLabs/Kokoro)
+  const handleUploadAudio = (shotId: string, file: File) => {
+    const url = URL.createObjectURL(file);
+    const updated = shots.map(s => {
+      if (s.id === shotId) {
+        return {
+          ...s,
+          audioUrl: url,
+          audioName: file.name
+        };
+      }
+      return s;
+    });
+    setShots(updated);
+  };
+
+  const handleRemoveAudio = (shotId: string) => {
+    const updated = shots.map(s => {
+      if (s.id === shotId) {
+        return { ...s, audioUrl: undefined, audioName: undefined };
+      }
+      return s;
+    });
+    setShots(updated);
+  };
+
+  // Export Flow Prompts as Sequenced Text Document
+  const handleExportFlowPrompts = () => {
+    const compiledMap: Record<string, string> = {};
+    shots.forEach(s => {
+      const res = compileScenePrompt(selectedCharacter, s);
+      compiledMap[s.id] = res.finalPrompt;
+    });
+    exportFlowPromptsText(selectedCharacter, shots, compiledMap);
+  };
+
+  // Import Project JSON
+  const handleImportProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = parseProjectJson(text);
+        if (parsed.character) {
+          setCharacters(prev => {
+            const exists = prev.some(c => c.id === parsed.character!.id);
+            return exists ? prev.map(c => c.id === parsed.character!.id ? parsed.character! : c) : [...prev, parsed.character!];
+          });
+          setSelectedCharId(parsed.character.id);
+        }
+        if (parsed.shots && parsed.shots.length > 0) {
+          setShots(parsed.shots);
+          setSelectedShotId(parsed.shots[0].id);
+          setSelectedShotIds([parsed.shots[0].id]);
+        }
+      } catch (err: any) {
+        alert(err.message || 'Erro ao carregar projeto');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleExportCharacter = () => {
@@ -501,12 +601,58 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Voice Calibration (Character.ai) */}
-              <div className="space-y-2 p-3.5 bg-zinc-900/40 rounded-xl border border-zinc-800/80">
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-                  Calibração de Voz da Persona
-                </label>
+              {/* Voice Calibration & Neural Presets (Character.ai) */}
+              <div className="space-y-3 p-3.5 bg-zinc-900/40 rounded-xl border border-zinc-800/80">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                    Calibração de Voz (Character.ai)
+                  </label>
+                  {isSpeaking && (
+                    <div className="flex items-center gap-1 h-3 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-800/50">
+                      <span className="w-1 h-3 bg-emerald-400 animate-pulse" />
+                      <span className="w-1 h-2 bg-emerald-400 animate-pulse delay-75" />
+                      <span className="w-1 h-3.5 bg-emerald-400 animate-pulse delay-150" />
+                      <span className="w-1 h-2.5 bg-emerald-400 animate-pulse delay-100" />
+                      <span className="text-[10px] font-mono text-emerald-400 ml-1">Falando...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Voice Presets */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { name: 'Feminina Natural', pitch: 1.15, rate: 1.05 },
+                    { name: 'Masculina Grave', pitch: 0.85, rate: 0.95 },
+                    { name: 'Narrador Cinema', pitch: 0.9, rate: 0.9 },
+                    { name: 'Enérgica / Anime', pitch: 1.3, rate: 1.15 },
+                  ].map(preset => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        setVoicePitch(preset.pitch);
+                        setVoiceRate(preset.rate);
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                        voicePitch === preset.pitch && voiceRate === preset.rate
+                          ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
+                          : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white hover:bg-zinc-800'
+                      }`}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => handleSpeak(`Olá, sou ${selectedCharacter.name}! Estou pronta para planejar as tomadas da nossa cena.`)}
+                    className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 flex items-center gap-1 font-semibold ml-auto"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                    Testar Voz
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex justify-between text-[11px] text-zinc-400 mb-1">
@@ -517,7 +663,7 @@ export default function App() {
                       type="range" 
                       min="0.5" 
                       max="1.5" 
-                      step="0.1" 
+                      step="0.05" 
                       value={voicePitch} 
                       onChange={(e) => setVoicePitch(parseFloat(e.target.value))}
                       className="w-full accent-emerald-500"
@@ -532,7 +678,7 @@ export default function App() {
                       type="range" 
                       min="0.8" 
                       max="1.4" 
-                      step="0.1" 
+                      step="0.05" 
                       value={voiceRate} 
                       onChange={(e) => setVoiceRate(parseFloat(e.target.value))}
                       className="w-full accent-emerald-500"
@@ -642,6 +788,14 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+                {streamingText !== null && (
+                  <div className="flex flex-col items-start animate-in fade-in duration-100">
+                    <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-zinc-900 text-zinc-100 border border-emerald-500/40 rounded-bl-none shadow-sm">
+                      <span className="whitespace-pre-wrap">{streamingText}</span>
+                      <span className="inline-block w-1.5 h-3.5 bg-emerald-400 ml-1 translate-y-0.5 animate-pulse" />
+                    </div>
+                  </div>
+                )}
                 {isThinking && (
                   <div className="flex flex-col items-start">
                     <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl px-3 py-1.5 text-[11px] text-emerald-400 flex items-center gap-2 animate-pulse">
@@ -650,6 +804,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                <div ref={chatBottomRef} />
               </div>
 
               {/* Quick Prompt Chips */}
@@ -786,6 +941,53 @@ export default function App() {
                     <Plus className="w-3.5 h-3.5" />
                     Nova Cena
                   </button>
+
+                  <div className="h-4 w-px bg-zinc-800 mx-0.5" />
+
+                  {/* Timeline Sequencer (Buzzy.now continuous movie player) */}
+                  <button
+                    onClick={() => setIsTimelineOpen(true)}
+                    title="Reproduzir todas as cenas em sequência de vídeo contínua (Timeline Sequencer)"
+                    className="px-2.5 py-1 text-xs font-semibold rounded border bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 flex items-center gap-1.5 transition-all shadow-sm"
+                  >
+                    <Film className="w-3.5 h-3.5" />
+                    Modo Filme
+                  </button>
+
+                  {/* Export Project JSON */}
+                  <button
+                    onClick={() => exportProjectJson(selectedCharacter, shots)}
+                    title="Exportar Storyboard completo em formato JSON"
+                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded text-xs flex items-center gap-1 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden xl:inline text-[11px]">Salvar JSON</span>
+                  </button>
+
+                  {/* Export Flow Prompts TXT */}
+                  <button
+                    onClick={handleExportFlowPrompts}
+                    title="Exportar lista de prompts sequenciados para o Google Flow (TXT)"
+                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded text-xs flex items-center gap-1 transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden xl:inline text-[11px]">Prompts Flow</span>
+                  </button>
+
+                  {/* Import Project JSON */}
+                  <label 
+                    title="Carregar projeto JSON salvo"
+                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 rounded text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden xl:inline text-[11px]">Carregar</span>
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={handleImportProject}
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -1041,6 +1243,57 @@ export default function App() {
                 )}
               </div>
 
+              {/* Uploaded Audio Track Section (ElevenLabs/Kokoro/Neural voice) */}
+              <div className="space-y-2 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                    <Music className="w-3.5 h-3.5 text-emerald-400" />
+                    Locução / Áudio da Cena
+                  </label>
+                  {activeShot.audioUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAudio(activeShot.id)}
+                      className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Remover
+                    </button>
+                  )}
+                </div>
+
+                {activeShot.audioUrl ? (
+                  <div className="p-2.5 bg-black/60 rounded-lg border border-zinc-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2 truncate">
+                      <Volume2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="text-xs font-mono text-zinc-300 truncate">
+                        {activeShot.audioName || 'audio_locucao.mp3'}
+                      </span>
+                    </div>
+                    <audio src={activeShot.audioUrl} controls className="h-7 max-w-[140px]" />
+                  </div>
+                ) : (
+                  <label className="w-full h-16 border-2 border-dashed border-zinc-800 hover:border-emerald-500/50 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all bg-zinc-950/40 p-2 text-center group">
+                    <span className="text-[10px] font-medium text-emerald-400 group-hover:underline flex items-center gap-1">
+                      <Upload className="w-3 h-3" /> Anexar áudio MP3/WAV (ElevenLabs / Kokoro)
+                    </span>
+                    <span className="text-[9px] text-zinc-500 mt-0.5">
+                      Sincronizado automaticamente no Modo Filme
+                    </span>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          handleUploadAudio(activeShot.id, e.target.files[0]);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
               {/* Warnings Box */}
               {compilationResult.warnings.length > 0 && (
                 <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/60 space-y-1">
@@ -1110,6 +1363,14 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Timeline Sequencer Modal (Buzzy.now continuous movie player) */}
+      <TimelinePlayer
+        shots={shots}
+        isOpen={isTimelineOpen}
+        onClose={() => setIsTimelineOpen(false)}
+        onSelectShot={setSelectedShotId}
+      />
     </div>
   );
 }

@@ -44,6 +44,8 @@ export interface SceneShot {
   seed?: number;
   mediaUrl?: string;
   mediaType?: 'video' | 'image';
+  audioUrl?: string;
+  audioName?: string;
 }
 
 export interface CompiledPromptResult {
