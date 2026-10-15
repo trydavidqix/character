@@ -12,12 +12,13 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { SceneShot } from '../core/types';
-import { Video } from 'lucide-react';
+import { Video, Trash2, CheckCircle2 } from 'lucide-react';
 
 interface SceneCanvasProps {
   shots: SceneShot[];
   selectedShotId: string;
   onSelectShot: (id: string) => void;
+  onDeleteShot: (id: string) => void;
   onUploadMedia: (shotId: string, file: File) => void;
 }
 
@@ -37,14 +38,49 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
     >
       <Handle type="target" position={Position.Left} className="w-3 h-3 bg-emerald-500 border-2 border-zinc-950" />
 
-      {/* Node Header */}
+      {/* Node Header with Select and Delete buttons */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-          CENA {data.index + 1}
-        </span>
-        <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
-          {shot.aspectRatio}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onSelect(shot.id);
+            }}
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border transition-all flex items-center gap-1 ${
+              isSelected 
+                ? 'bg-emerald-500 text-zinc-950 border-emerald-400 font-extrabold shadow-sm' 
+                : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:bg-zinc-700'
+            }`}
+            title="Selecionar esta cena"
+          >
+            {isSelected ? (
+              <>
+                <CheckCircle2 className="w-3 h-3 text-zinc-950" />
+                Ativa
+              </>
+            ) : (
+              'Selecionar'
+            )}
+          </button>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 font-mono">
+            {shot.aspectRatio}
+          </span>
+        </div>
+
+        {data.totalShots > 1 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onDelete(shot.id);
+            }}
+            title="Apagar esta cena"
+            className="p-1 text-zinc-500 hover:text-red-400 hover:bg-red-950/40 rounded transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Video or Image Preview */}
@@ -98,7 +134,7 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
   );
 };
 
-export default function SceneCanvas({ shots, selectedShotId, onSelectShot, onUploadMedia }: SceneCanvasProps) {
+export default function SceneCanvas({ shots, selectedShotId, onSelectShot, onDeleteShot, onUploadMedia }: SceneCanvasProps) {
   const nodeTypes = useMemo(() => ({ shotNode: ShotNodeComponent }), []);
 
   // Transform shots into ReactFlow nodes
@@ -110,12 +146,14 @@ export default function SceneCanvas({ shots, selectedShotId, onSelectShot, onUpl
       data: {
         shot,
         index,
+        totalShots: shots.length,
         isSelected: shot.id === selectedShotId,
         onSelect: onSelectShot,
+        onDelete: onDeleteShot,
         onUpload: onUploadMedia,
       },
     }));
-  }, [shots, selectedShotId, onSelectShot, onUploadMedia]);
+  }, [shots, selectedShotId, onSelectShot, onDeleteShot, onUploadMedia]);
 
   // Connect shots sequentially with edges
   const edges: Edge[] = useMemo(() => {

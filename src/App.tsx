@@ -648,13 +648,43 @@ export default function App() {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleAddShot}
-                  className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded border border-emerald-500/30 text-xs font-semibold flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Adicionar Cena no Canvas
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Option 1: Quick Select Scene */}
+                  <div className="flex items-center gap-1.5 bg-zinc-950 px-2.5 py-0.5 rounded border border-zinc-800">
+                    <span className="text-[11px] text-zinc-400 font-medium">Selecionar Cena:</span>
+                    <select
+                      value={selectedShotId}
+                      onChange={(e) => setSelectedShotId(e.target.value)}
+                      className="bg-transparent text-xs font-semibold text-emerald-400 focus:outline-none cursor-pointer pr-1"
+                    >
+                      {shots.map((s, idx) => (
+                        <option key={s.id} value={s.id} className="bg-zinc-900 text-white">
+                          #{idx + 1} — {s.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Option 2: Delete Selected Scene */}
+                  {shots.length > 1 && (
+                    <button
+                      onClick={() => handleDeleteShot(selectedShotId)}
+                      title="Apagar Cena Ativa"
+                      className="px-2 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-900/50 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      Apagar
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleAddShot}
+                    className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded border border-emerald-500/30 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Nova Cena
+                  </button>
+                </div>
               </div>
 
               {/* Workspace Content */}
@@ -665,6 +695,7 @@ export default function App() {
                     shots={shots}
                     selectedShotId={selectedShotId}
                     onSelectShot={setSelectedShotId}
+                    onDeleteShot={handleDeleteShot}
                     onUploadMedia={handleUploadMedia}
                   />
                 ) : (
