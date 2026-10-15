@@ -20,13 +20,15 @@ import {
   Play,
   Settings,
   Clapperboard,
-  Upload
+  Upload,
+  Paperclip
 } from 'lucide-react';
 import { CharacterSheet, SceneShot } from './core/types';
 import { defaultCharacters } from './core/defaultCharacters';
 import { compileScenePrompt } from './core/promptCompiler';
 import { exportProjectJson, exportFlowPromptsText, parseProjectJson } from './core/projectExporter';
 import { buzzyWorkflowTemplates, BuzzyTemplate } from './core/buzzyTemplates';
+import { generateStoryboardFromIdea, StoryPackage } from './core/storyboardGenerator';
 import SceneCanvas from './components/SceneCanvas';
 import TimelinePlayer from './components/TimelinePlayer';
 
@@ -37,6 +39,7 @@ export interface ChatMessage {
   alternatives?: string[];
   activeAltIndex?: number;
   suggestedShot?: Partial<SceneShot>;
+  storyPackage?: StoryPackage;
 }
 
 export const buzzyCameraMovements = [
@@ -272,8 +275,16 @@ export default function App() {
     updateChat(nextMessages);
     setIsThinking(true);
 
-    // Build scene draft if the prompt is about drafting a scene
-    const isSceneRequest = /scene|shot|film|ad|animation|cinematic|camera|video|action|script|look/i.test(textToSend);
+    // Check if user is asking to create a soap opera, story, script, or narrative
+    const isFullStoryRequest = /novela|hist[oó]ria|story|storyboard|roteiro|epis[oó]dio|episode|drama|trama|short film|plot|synopsis|heist|serie|s[eé]rie/i.test(textToSend);
+    let generatedStoryPackage: StoryPackage | undefined = undefined;
+
+    if (isFullStoryRequest) {
+      generatedStoryPackage = generateStoryboardFromIdea(selectedCharacter, textToSend);
+    }
+
+    // Build scene draft if the prompt is about drafting a single scene
+    const isSceneRequest = !isFullStoryRequest && /scene|shot|film|ad|animation|cinematic|camera|video|action|look/i.test(textToSend);
     let draftShot: Partial<SceneShot> | undefined = undefined;
 
     if (isSceneRequest) {
@@ -305,7 +316,10 @@ export default function App() {
 
       if (!response.ok) throw new Error('Bridge offline');
       const data = await response.json();
-      const botReply = data.reply || selectedCharacter.greeting || 'Ready for the next shot!';
+      let botReply = data.reply || selectedCharacter.greeting || 'Ready for the next shot!';
+      if (generatedStoryPackage) {
+        botReply = `*reviews the dramatic concept with a passionate smile* I've developed the entire storyboard for "${generatedStoryPackage.storyTitle}". All ${generatedStoryPackage.shots.length} scenes are laid out below with camera movements, dialogue, and Flow prompts ready.`;
+      }
 
       const botMessageId = `char-${Date.now()}`;
       const newBotMsg: ChatMessage = {
@@ -315,6 +329,7 @@ export default function App() {
         alternatives: [botReply],
         activeAltIndex: 0,
         suggestedShot: draftShot,
+        storyPackage: generatedStoryPackage,
       };
 
       updateChat([...nextMessages, newBotMsg]);
@@ -322,20 +337,27 @@ export default function App() {
       streamResponse(botReply, botMessageId);
     } catch {
       // Local intelligent response
-      const fallbackReplies = [
-        `*reviews the storyboard notes with confidence* I've drafted a new scene layout for our project below. Notice how the camera push highlights the face anchor.`,
-        `*adjusts the lighting setup* Here is the scene draft. The 35mm optical fidelity ensures our accessories and facial features remain completely identical.`,
-        `*points toward the horizon* Let's anchor this scene with a slow Dolly In. I have formatted the prompt with our mandatory face references ready for Flow.`
-      ];
-      const botReply = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+      let botReply = '';
+      if (generatedStoryPackage) {
+        botReply = `*opens the production script with enthusiasm* I have developed the complete 3-scene storyboard for "${generatedStoryPackage.storyTitle}". Notice how the narrative builds from the establishing discovery to the dramatic climax below!`;
+      } else {
+        const fallbackReplies = [
+          `*reviews the storyboard notes with confidence* I've drafted a new scene layout for our project below. Notice how the camera push highlights the face anchor.`,
+          `*adjusts the lighting setup* Here is the scene draft. The 35mm optical fidelity ensures our accessories and facial features remain completely identical.`,
+          `*points toward the horizon* Let's anchor this scene with a slow Dolly In. I have formatted the prompt with our mandatory face references ready for Flow.`
+        ];
+        botReply = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+      }
+
       const botMessageId = `char-${Date.now()}`;
       const newBotMsg: ChatMessage = {
         id: botMessageId,
         sender: 'char',
         text: '',
-        alternatives: fallbackReplies,
+        alternatives: [botReply],
         activeAltIndex: 0,
         suggestedShot: draftShot,
+        storyPackage: generatedStoryPackage,
       };
 
       updateChat([...nextMessages, newBotMsg]);
@@ -384,6 +406,30 @@ export default function App() {
     setShots(prev => [...prev, newShot]);
     setSelectedShotId(newId);
     setSelectedShotIds([newId]);
+  };
+
+  // Load entire multi-scene story package into active storyboard
+  const handleLoadEntireStoryPackage = (pkg: StoryPackage) => {
+    setShots(pkg.shots);
+    setSelectedShotId(pkg.shots[0].id);
+    setSelectedShotIds([pkg.shots[0].id]);
+  };
+
+  // Attach synopsis or reference file directly into chat
+  const handleAttachReferenceFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type.startsWith('text') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setChatInput(`Create a soap opera storyboard based on this story: ${content.slice(0, 500)}`);
+      };
+      reader.readAsText(file);
+    } else {
+      setChatInput(`Create a soap opera storyboard based on the reference: ${file.name}`);
+    }
   };
 
   // Copy structured Flow prompt
@@ -914,6 +960,93 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                {/* Complete Storyboard Episode Package inside Chat */}
+                {msg.storyPackage && (
+                  <div className="mt-3 p-3.5 rounded-2xl bg-zinc-950/90 border border-emerald-500/50 space-y-3 shadow-xl text-left">
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 font-mono tracking-wider flex items-center gap-1.5">
+                          <Film className="w-3.5 h-3.5" />
+                          Generated Storyboard Package • {msg.storyPackage.genre.toUpperCase()}
+                        </span>
+                        <h4 className="text-xs font-bold text-white mt-0.5">{msg.storyPackage.storyTitle}</h4>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                        {msg.storyPackage.shots.length} Scenes
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-300 italic">
+                      "{msg.storyPackage.logline}"
+                    </p>
+
+                    {/* Sequential Scenes List */}
+                    <div className="space-y-2">
+                      {msg.storyPackage.shots.map((shot) => {
+                        const compiledPrompt = compileScenePrompt(selectedCharacter, shot).finalPrompt;
+                        return (
+                          <div key={shot.id} className="p-2.5 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                <Clapperboard className="w-3.5 h-3.5 text-emerald-400" />
+                                {shot.title}
+                              </span>
+                              <span className="text-[9px] font-mono text-cyan-300 bg-cyan-950/50 border border-cyan-800/50 px-1.5 py-0.2 rounded">
+                                🎥 {shot.cameraMovement}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-zinc-300">
+                              <span className="text-zinc-500 font-medium">Framing:</span> {shot.framing}
+                            </p>
+                            {shot.dialogueLine && (
+                              <p className="text-[11px] text-emerald-300 italic">
+                                "{shot.dialogueLine}"
+                              </p>
+                            )}
+                            <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
+                              <span className="text-[10px] text-zinc-400 truncate max-w-sm font-mono">
+                                Flow: {compiledPrompt.slice(0, 60)}...
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyFlowPrompt(shot)}
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 shrink-0 ml-2"
+                              >
+                                {copiedPromptId === shot.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                {copiedPromptId === shot.id ? 'Copied' : 'Copy Flow Prompt'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Master Action Buttons */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => handleLoadEntireStoryPackage(msg.storyPackage!)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-950 transition-all"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Load All {msg.storyPackage.shots.length} Scenes into Project
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleLoadEntireStoryPackage(msg.storyPackage!);
+                          setIsTimelineOpen(true);
+                        }}
+                        className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-all"
+                      >
+                        <Play className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
+                        Play in Movie Mode
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Character.ai Controls: Swipe Alternative & Quick Actions */}
@@ -943,7 +1076,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {!msg.suggestedShot && (
+                  {!msg.suggestedShot && !msg.storyPackage && (
                     <button
                       type="button"
                       onClick={() => handleAddShotToProject({}, msg.text)}
@@ -971,7 +1104,7 @@ export default function App() {
             <div className="flex flex-col items-start">
               <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl px-4 py-2 text-[11px] text-emerald-400 flex items-center gap-2 animate-pulse">
                 <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                {selectedCharacter.name} is developing the scene...
+                {selectedCharacter.name} is developing the storyboard...
               </div>
             </div>
           )}
@@ -982,40 +1115,52 @@ export default function App() {
         <div className="p-2 border-t border-zinc-800/80 bg-zinc-950/80 max-w-4xl w-full mx-auto flex gap-1.5 overflow-x-auto shrink-0">
           <button
             type="button"
-            onClick={() => handleSendMessage('Create the next cinematic film scene with dramatic lighting and a push-in camera motion.')}
+            onClick={() => handleSendMessage('Create a 3-scene soap opera drama exploring an unsolved mystery at a Mediterranean villa.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            🎬 Draft Film Scene
+            📺 Create Soap Opera Drama
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Create a high-energy UGC commercial ad scene for mobile 9:16 aspect ratio.')}
+            onClick={() => handleSendMessage('Develop a cinematic mystery short film script with dramatic camera movements.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            📢 Draft Viral UGC Ad
+            🎬 Cinematic Mystery Script
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Create a stylized dynamic anime action sequence with cel-shaded colors.')}
+            onClick={() => handleSendMessage('Generate a high-conversion 3-scene viral commercial ad for mobile 9:16.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            ✨ Draft Anime Shot
+            📢 Viral UGC Commercial
           </button>
           <button
             type="button"
-            onClick={() => handleSendMessage('Review our wardrobe rules and face consistency anchors before we render in Flow.')}
+            onClick={() => handleSendMessage('Produce a stylized anime action sequence storyboard with cel-shaded colors.')}
             className="text-[11px] px-3 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 whitespace-nowrap border border-zinc-800 flex items-center gap-1.5"
           >
-            👗 Check Consistency Rules
+            ✨ Anime Action Storyboard
           </button>
         </div>
 
-        {/* Chat Input Bar */}
+        {/* Chat Input Bar with Reference Attachment */}
         <div className="p-4 border-t border-zinc-800 bg-zinc-950 max-w-4xl w-full mx-auto shrink-0">
           <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex gap-2">
+            <label 
+              title="Attach synopsis text file or reference" 
+              className="p-2.5 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-emerald-400 cursor-pointer flex items-center justify-center transition-colors shrink-0"
+            >
+              <Paperclip className="w-4 h-4" />
+              <input 
+                type="file" 
+                accept=".txt,.md,image/*" 
+                className="hidden" 
+                onChange={handleAttachReferenceFile}
+              />
+            </label>
             <input
               type="text"
-              placeholder={`Tell ${selectedCharacter.name} what scene, character, or project to develop...`}
+              placeholder={`Tell ${selectedCharacter.name}: e.g. "Create a soap opera about...", or attach a story reference...`}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 placeholder:text-zinc-600 shadow-inner"
@@ -1023,7 +1168,7 @@ export default function App() {
             <button
               type="submit"
               disabled={isThinking || isStreaming}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs rounded-2xl flex items-center justify-center transition-all shadow-md shadow-emerald-600/20"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-xs rounded-2xl flex items-center justify-center transition-all shadow-md shadow-emerald-600/20 shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
