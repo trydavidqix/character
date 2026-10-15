@@ -20,6 +20,7 @@ interface SceneCanvasProps {
   selectedShotIds: string[];
   onSelectShot: (id: string) => void;
   onToggleSelectShot: (id: string) => void;
+  onRangeSelectShot?: (id: string) => void;
   onDeleteShot: (id: string) => void;
   onUploadMedia: (shotId: string, file: File) => void;
 }
@@ -32,12 +33,24 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
 
   return (
     <div 
-      onClick={() => data.onSelect(shot.id)}
-      className={`w-72 rounded-xl bg-zinc-900/95 border text-left p-3 shadow-xl backdrop-blur transition-all cursor-pointer ${
+      onClick={(e) => {
+        if (e.ctrlKey || e.metaKey) {
+          // Multi-selection with Ctrl/Cmd key
+          data.onToggleSelect(shot.id);
+        } else if (e.shiftKey && data.onRangeSelect) {
+          // Range selection with Shift key
+          data.onRangeSelect(shot.id);
+        } else {
+          // Single select focused card
+          data.onSelect(shot.id);
+        }
+      }}
+      title="Clique para selecionar. Segure Ctrl para selecionar múltiplos cards."
+      className={`w-72 rounded-xl bg-zinc-900/95 border text-left p-3 shadow-xl backdrop-blur transition-all cursor-pointer select-none ${
         isActive 
           ? 'border-emerald-500 shadow-emerald-500/20 ring-2 ring-emerald-500/40' 
           : isSelected
-          ? 'border-emerald-500/60 ring-1 ring-emerald-500/30 bg-emerald-950/10'
+          ? 'border-emerald-500/60 ring-1 ring-emerald-500/30 bg-emerald-950/20'
           : 'border-zinc-800 hover:border-zinc-700'
       }`}
     >
@@ -57,7 +70,7 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
                 ? 'bg-emerald-500 text-zinc-950 border-emerald-400 font-extrabold shadow-sm' 
                 : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white hover:bg-zinc-700'
             }`}
-            title="Marcar / Desmarcar cena (Atalho: H seleciona todas)"
+            title="Marcar / Desmarcar cena (Segure Ctrl no card ou pressione H)"
           >
             {isSelected ? (
               <>
@@ -113,7 +126,10 @@ const ShotNodeComponent = ({ data }: { data: any }) => {
             <span className="text-[10px] font-medium text-zinc-500">
               Aguardando vídeo gerado no Flow
             </span>
-            <label className="cursor-pointer text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold underline mt-0.5">
+            <label 
+              onClick={(e) => e.stopPropagation()}
+              className="cursor-pointer text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold underline mt-0.5"
+            >
               Enviar arquivo
               <input 
                 type="file" 
@@ -145,6 +161,7 @@ export default function SceneCanvas({
   selectedShotIds,
   onSelectShot, 
   onToggleSelectShot,
+  onRangeSelectShot,
   onDeleteShot, 
   onUploadMedia 
 }: SceneCanvasProps) {
@@ -156,6 +173,7 @@ export default function SceneCanvas({
       id: shot.id,
       type: 'shotNode',
       position: { x: index * 340 + 50, y: 120 },
+      selected: selectedShotIds.includes(shot.id),
       data: {
         shot,
         index,
@@ -164,11 +182,12 @@ export default function SceneCanvas({
         isSelected: selectedShotIds.includes(shot.id),
         onSelect: onSelectShot,
         onToggleSelect: onToggleSelectShot,
+        onRangeSelect: onRangeSelectShot,
         onDelete: onDeleteShot,
         onUpload: onUploadMedia,
       },
     }));
-  }, [shots, selectedShotId, selectedShotIds, onSelectShot, onToggleSelectShot, onDeleteShot, onUploadMedia]);
+  }, [shots, selectedShotId, selectedShotIds, onSelectShot, onToggleSelectShot, onRangeSelectShot, onDeleteShot, onUploadMedia]);
 
   // Connect shots sequentially with edges
   const edges: Edge[] = useMemo(() => {

@@ -278,6 +278,11 @@ export default function App() {
     }
   };
 
+  const handleSelectShot = (shotId: string) => {
+    setSelectedShotId(shotId);
+    setSelectedShotIds([shotId]);
+  };
+
   const handleToggleSelectShot = (shotId: string) => {
     if (selectedShotIds.includes(shotId)) {
       setSelectedShotIds(selectedShotIds.filter(id => id !== shotId));
@@ -285,6 +290,20 @@ export default function App() {
       setSelectedShotIds([...selectedShotIds, shotId]);
     }
     setSelectedShotId(shotId);
+  };
+
+  const handleRangeSelectShot = (shotId: string) => {
+    const currentIndex = shots.findIndex(s => s.id === selectedShotId);
+    const targetIndex = shots.findIndex(s => s.id === shotId);
+    if (currentIndex !== -1 && targetIndex !== -1) {
+      const start = Math.min(currentIndex, targetIndex);
+      const end = Math.max(currentIndex, targetIndex);
+      const rangeIds = shots.slice(start, end + 1).map(s => s.id);
+      setSelectedShotIds(Array.from(new Set([...selectedShotIds, ...rangeIds])));
+      setSelectedShotId(shotId);
+      return;
+    }
+    handleToggleSelectShot(shotId);
   };
 
   const handleDeleteSelected = () => {
@@ -705,10 +724,15 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Dica Ctrl p/ seleção múltipla */}
+                  <span className="text-[11px] text-zinc-500 font-medium hidden md:inline">
+                    <kbd className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-300 font-mono text-[10px]">Ctrl</kbd> + clique para múltiplos
+                  </span>
+
                   {/* Atalho H: Selecionar Tudo (Liga/Desliga) */}
                   <button
                     onClick={toggleSelectAll}
-                    title="Pressione 'H' para selecionar ou desmarcar todas as cenas"
+                    title="Pressione 'H' para selecionar ou desmarcar todas as cenas. Segure Ctrl e clique nos cards para multi-seleção."
                     className={`px-2.5 py-1 text-xs font-semibold rounded border transition-all flex items-center gap-1.5 ${
                       selectedShotIds.length === shots.length && shots.length > 0
                         ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
@@ -724,10 +748,9 @@ export default function App() {
                     <select
                       value={selectedShotId}
                       onChange={(e) => {
-                        setSelectedShotId(e.target.value);
-                        if (!selectedShotIds.includes(e.target.value)) {
-                          setSelectedShotIds([...selectedShotIds, e.target.value]);
-                        }
+                        const id = e.target.value;
+                        setSelectedShotId(id);
+                        setSelectedShotIds([id]);
                       }}
                       className="bg-transparent text-xs font-semibold text-emerald-400 focus:outline-none cursor-pointer pr-1"
                     >
@@ -774,8 +797,9 @@ export default function App() {
                     shots={shots}
                     selectedShotId={selectedShotId}
                     selectedShotIds={selectedShotIds}
-                    onSelectShot={setSelectedShotId}
+                    onSelectShot={handleSelectShot}
                     onToggleSelectShot={handleToggleSelectShot}
+                    onRangeSelectShot={handleRangeSelectShot}
                     onDeleteShot={handleDeleteShot}
                     onUploadMedia={handleUploadMedia}
                   />
